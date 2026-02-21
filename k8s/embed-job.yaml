@@ -9,7 +9,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: embed
-          image: gowthamchowdam94/role-chatbot-api:1.1
+          image: gowthamchowdam94/role-chatbot-api:1.2
           command: ["python", "-m", "app.embed_documents"]
           env:
             - name: GOOGLE_API_KEY
