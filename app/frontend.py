@@ -3,7 +3,8 @@ import requests
 from requests.auth import HTTPBasicAuth
 import time
 
-API_URL = "http://localhost:8000"  # local backend
+import os
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="🧠 Role-Based Chatbot", layout="centered")
 

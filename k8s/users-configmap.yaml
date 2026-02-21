@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbot-users
+data:
+  users.json: |
+    {
+      "Aakanksha": {"password": "password123", "role": "engineering"},
+      "Sahithi": {"password": "securepass", "role": "marketing"},
+      "Yasasvi": {"password": "financepass", "role": "finance"},
+      "Peter": {"password": "pete123", "role": "engineering"},
+      "Sid": {"password": "sidpass123", "role": "marketing"},
+      "Shiva": {"password": "hrpass123", "role": "hr"},
+      "Gowtham": {"password": "ceopass", "role": "c-levelexecutives"},
+      "Kiran": {"password": "employeepass", "role": "employee"}
+    }

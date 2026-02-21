@@ -32,7 +32,7 @@ if not GOOGLE_API_KEY:
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # Choose Gemini model (fast + good):
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # -----------------------------
 # Initialize FastAPI app
@@ -46,7 +46,7 @@ security = HTTPBasic()
 embedding_function = GoogleAIStudioEmbeddings(model="text-embedding-004")
 
 vectordb = Chroma(
-    persist_directory="chroma_db",
+    persist_directory=os.getenv("CHROMA_DIR", "chroma_db"),
     embedding_function=embedding_function,
     collection_name="company_docs",
 )
@@ -54,34 +54,24 @@ vectordb = Chroma(
 # -----------------------------
 # Dummy Users Database
 # -----------------------------
-users_db: Dict[str, Dict[str, str]] = {
-    "Aakanksha": {"password": "password123", "role": "engineering"},
-    "Sahithi": {"password": "securepass", "role": "marketing"},
-    "Yasasvi": {"password": "financepass", "role": "finance"},
-    "Peter": {"password": "pete123", "role": "engineering"},
-    "Sid": {"password": "sidpass123", "role": "marketing"},
-    "Shiva": {"password": "hrpass123", "role": "hr"},
-    "Gowtham": {"password": "ceopass", "role": "c-levelexecutives"},
-    "Kiran": {"password": "employeepass", "role": "employee"},
-}
+from app.users_loader import load_users
+
+users_db: Dict[str, Dict[str, str]] = load_users()
 
 # -----------------------------
 # Helper: Authentication
 # -----------------------------
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    # DEBUG prints (requested)
-    print("DEBUG username:", repr(credentials.username))
-    print("DEBUG known users:", list(users_db.keys()))
+    users_db = load_users()  # always read latest file
 
-    username = credentials.username
-    password = credentials.password
+    username = (credentials.username or "").strip()
+    password = (credentials.password or "").strip()
 
     user = users_db.get(username)
     if not user or user["password"] != password:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     return {"username": username, "role": user["role"]}
-
 # -----------------------------
 # Endpoints
 # -----------------------------

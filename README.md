@@ -10,10 +10,10 @@ A secure, production-ready internal AI chatbot powered by **Google API + Vector 
 ## 🌐 Live Demo
 
 🔗 Frontend (Streamlit UI):  
-https://ja2tbmhz9qqmrjenwwmtts.streamlit.app/
+https://gowthamchowdam.streamlit.app/
 
 🔗 Backend API (FastAPI Docs):  
-https://role-based-aichatbot.onrender.com/docs  
+http://localhost:8000  
 
 ---
 ## 🖥 Application UI
@@ -205,8 +205,8 @@ Create .env:
 
 ```bash
 GOOGLE_API_KEY=your_google_ai_studio_api_key
-# Optional (defaults to gemini-1.5-flash)
-GEMINI_MODEL=gemini-1.5-flash
+# Optional (defaults to gemini-2.5-flash)
+GEMINI_MODEL=5-flash
 ```
 
 Run BAckend
