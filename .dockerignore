@@ -1,0 +1,30 @@
+# git
+.git
+.gitignore
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# local data / vector db
+chroma_db/
+*.sqlite*
+*.db
+
+# misc
+*.log
+.DS_Store
+.vscode/
+.idea/
+
+# streamlit cache
+.streamlit/
+
+# large resources if not needed in image (optional)
+# resources/data/

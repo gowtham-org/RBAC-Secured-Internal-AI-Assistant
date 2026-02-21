@@ -25,7 +25,7 @@ CHROMA_DIR = "chroma_db"
 
 load_dotenv()
 
-embedding_model = GoogleAIStudioEmbeddings(model="text-embedding-004")
+embedding_model = GoogleAIStudioEmbeddings(model="models/gemini-embedding-001")
 
 # -------------------------------
 # Aggregate all split documents

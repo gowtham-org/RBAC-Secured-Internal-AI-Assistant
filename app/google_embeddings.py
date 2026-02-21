@@ -4,7 +4,6 @@ from typing import List
 
 from dotenv import load_dotenv
 import google.generativeai as genai
-
 from langchain_core.embeddings import Embeddings
 
 load_dotenv()
@@ -18,11 +17,11 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 class GoogleAIStudioEmbeddings(Embeddings):
     """
-    LangChain Embeddings wrapper using Google AI Studio embeddings via google-generativeai.
-    Model used: text-embedding-004 (recommended default).
+    Uses Gemini embedding model via google-generativeai embed_content.
+    Use: models/gemini-embedding-001
     """
 
-    def __init__(self, model: str = "text-embedding-004"):
+    def __init__(self, model: str = "models/gemini-embedding-001"):
         self.model = model
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:

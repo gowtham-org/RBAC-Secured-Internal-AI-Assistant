@@ -43,7 +43,7 @@ security = HTTPBasic()
 # -----------------------------
 # Load Vector Database
 # -----------------------------
-embedding_function = GoogleAIStudioEmbeddings(model="text-embedding-004")
+embedding_function = GoogleAIStudioEmbeddings(model="models/gemini-embedding-001")
 
 vectordb = Chroma(
     persist_directory=os.getenv("CHROMA_DIR", "chroma_db"),
