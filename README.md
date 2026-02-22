@@ -118,23 +118,6 @@ This chatbot implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 
 ## 🏗 Project Architecture
 
-```mermaid
-flowchart TD
-    ST[Streamlit Cloud Frontend]
-    CF[Cloudflare Tunnel]
-    API[FastAPI Backend (Minikube)]
-    CH[ChromaDB (PVC)]
-    GEM[Gemini API]
-    DATA[Department Documents]
-    USERS[Users ConfigMap]
-
-    ST -->|API_URL| CF --> API
-    API --> CH
-    API --> GEM
-    DATA --> CH
-    USERS --> API
-
-📁 Project Structure
 
 Role_based_aichatbot/
 ├── app/
