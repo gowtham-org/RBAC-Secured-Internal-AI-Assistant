@@ -3,7 +3,7 @@
 ![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-red)
 ![Google%20Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-black)
 
-# 🤖 FinSolve Role-Based RAG Chatbot
+# 🤖 RBAC-Secured Internal AI Assistant (Role-Based RAG Chatbot)
 
 A secure, production-ready internal AI chatbot powered by **Google Gemini + Vector Search (RAG)** — with **Role-Based Access Control (RBAC)** for Finance, HR, Engineering, Marketing, Employees, and C-Level Executives.
 
@@ -17,33 +17,36 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 
 ---
 
-## 🖥 Application UI
+## 🖼 Screenshots
 
-<img width="1920" height="1080" alt="FinSolve RAG Chatbot UI" src="https://github.com/user-attachments/assets/500fab48-c69f-4661-86d2-38c594a44363" />
+### 🖥 Streamlit UI (Chat + Login)
+<img width="1920" height="1080" alt="RBAC RAG Chatbot UI" src="https://github.com/user-attachments/assets/500fab48-c69f-4661-86d2-38c594a44363" />
+
+### 📚 API Docs (FastAPI Swagger)
+Open: https://api.gowthamchowdam23.online/docs
 
 ---
 
 ## 🧩 Problem Background
 
-**FinSolve Technologies**, a leading FinTech company, faced:
+**Nexora Health Systems**, a fast-growing healthcare enterprise, faced:
 
-- Fragmented document access across departments
-- Communication delays
-- Security risks when sharing internal documents
-- No centralized knowledge retrieval system
+- Fragmented internal documents across departments
+- Slow resolution due to repetitive Q&A and manual lookups
+- Security risks when sensitive documents were shared incorrectly
+- No centralized, role-aware internal knowledge retrieval system
 
-Teams needed a secure AI assistant that:
+Teams needed an internal AI assistant that:
 
-- Understands context
-- Respects role-based access
-- Retrieves department-specific knowledge
-- Responds conversationally
+- Understands context and intent
+- Enforces role-based access policies
+- Retrieves department-specific knowledge only
+- Responds conversationally with grounded answers
 
 ---
-
 ## 🧠 Solution Overview
 
-This chatbot implements a **Retrieval-Augmented Generation (RAG)** pipeline with **Role-Based Filtering**:
+This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with **Role-Based Filtering**:
 
 - User logs in (RBAC enforced)
 - User asks a question
@@ -62,7 +65,6 @@ This chatbot implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 4. **Generate** → Gemini generates answer using retrieved context  
 
 ---
-
 ## 👥 Role-Based Access Control (RBAC)
 
 | Role               | Permissions                                                                 |
@@ -116,10 +118,36 @@ This chatbot implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 
 ---
 
-## 🏗 Project Architecture
+## 🧱 Architecture Diagram
 
+```mermaid
+flowchart LR
+  U[User] -->|Login + Query| S[Streamlit UI]
+  S -->|API Request| F[FastAPI Backend]
 
-Role_based_aichatbot/
+  F -->|Auth + Role| A[RBAC Layer]
+  A -->|Role-filtered query| V[ChromaDB Vector Store]
+  V -->|Top-k chunks| F
+
+  F -->|Context + Prompt| G[Google Gemini LLM]
+  G -->|Answer| F
+  F -->|Response| S
+
+  subgraph Kubernetes (Minikube)
+    F
+    V
+    CFT[cloudflared Tunnel Pod]
+  end
+
+  CFT -->|Public HTTPS| URL[api.gowthamchowdam23.online]
+  S -->|Calls Backend| URL
+
+---
+
+## 🏗 Project Structure
+
+```text
+RBAC-Secured-Internal-AI-Assistant/
 ├── app/
 │   ├── __init__.py
 │   ├── embed_documents.py
@@ -146,24 +174,68 @@ Role_based_aichatbot/
 └── .gitignore
 
 
+---
+
+## 🔐 Security Notes
+
+```md
+## 🔐 Security Notes
+
+This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
+
+### What’s protected
+- Department-specific documents are stored with metadata (role/department tags).
+- Retrieval queries are filtered by the authenticated user's role before sending context to the LLM.
+- Secrets (API keys) are injected via Kubernetes Secrets and should never be committed to the repo.
+
+### Data access rules
+- **C-Level**: unrestricted access
+- **Departments**: access only to their own folder/chunks
+- **Employees**: limited to general policies/FAQ
+
+### Secrets handling
+- `GOOGLE_API_KEY` is stored in:
+  - Local: `.env` (ignored by git)
+  - Kubernetes: `Secret` (`google-api`)
+- Cloudflare Tunnel credentials are stored in Kubernetes secrets (`cloudflared-creds`, `cloudflared-config`)
+
+### Recommended hardening (next steps)
+- Enforce HTTPS-only traffic end-to-end
+- Add rate limiting (FastAPI middleware / API gateway)
+- Add audit logs for user queries and document access decisions
+- Use short-lived tokens instead of basic auth (JWT/OAuth)
+
+
 ✅ Quickstart (Local Development)
 1) Clone the repository
-git clone https://github.com/gowtham-org/Role_based_aichatbot.git
-cd Role_based_aichatbot
+    ```bash
+    git clone https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant.git
+    cd RBAC-Secured-Internal-AI-Assistant
+    ```
 2) Create virtual environment (Python 3.11)
-python3.11 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+    ```bash
+    python3.11 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip
+    pip install -r requirements.txt
+    ```
 3) Create .env
-GOOGLE_API_KEY=your_google_ai_studio_api_key
-GEMINI_MODEL=gemini-2.5-flash
+    ```bash
+    GOOGLE_API_KEY=your_google_ai_studio_api_key
+    GEMINI_MODEL=gemini-2.5-flash
+    ```
 4) Build embeddings + ChromaDB (Run once)
-python -m app.embed_documents
+    ```bash
+    python -m app.embed_documents
+    ```
 5) Run backend (FastAPI)
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    ```bash
+    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+    ```
 6) Run frontend (Streamlit)
-streamlit run app/frontend.py
+    ```bash
+    streamlit run app/frontend.py
+    ```
 
 Open:
 
@@ -172,46 +244,61 @@ Frontend: http://localhost:8501
 Backend docs: http://localhost:8000/docs
 
 2) Start Minikube + Namespace
-minikube start
-kubectl create namespace rolechat || true
+    ```bash
+    minikube start
+    kubectl create namespace rolechat || true
+    ```
 3) Create Secret for Gemini API Key
-kubectl delete secret google-api -n rolechat 2>/dev/null || true
-kubectl create secret generic google-api -n rolechat \
-  --from-literal=GOOGLE_API_KEY="YOUR_GEMINI_API_KEY"
+    ```bash
+    kubectl delete secret google-api -n rolechat 2>/dev/null || true
+    kubectl create secret generic google-api -n rolechat \
+      --from-literal=GOOGLE_API_KEY="YOUR_GEMINI_API_KEY"
+    ```
 4) Apply PVC + Users ConfigMap
-kubectl apply -n rolechat -f k8s/chroma-pvc.yaml
-kubectl apply -n rolechat -f k8s/users-configmap.yaml
+    ```bash
+    kubectl apply -n rolechat -f k8s/chroma-pvc.yaml
+    kubectl apply -n rolechat -f k8s/users-configmap.yaml
+    ```
 5) Deploy Backend
-kubectl apply -n rolechat -f k8s/backend-deploy.yaml
-kubectl get pods -n rolechat
+    ```bash
+    kubectl apply -n rolechat -f k8s/backend-deploy.yaml
+    kubectl get pods -n rolechat
+    ```
 6) Build Vector DB (Embed Job)
-kubectl delete job embed-docs -n rolechat 2>/dev/null || true
-kubectl apply -n rolechat -f k8s/embed-job.yaml
-kubectl logs -n rolechat job/embed-docs -f
+    ```bash
+    kubectl delete job embed-docs -n rolechat 2>/dev/null || true
+    kubectl apply -n rolechat -f k8s/embed-job.yaml
+    kubectl logs -n rolechat job/embed-docs -f
+    ```
 7) Cloudflare Tunnel (Stable Backend URL)
 A) Login + Create tunnel
-cloudflared tunnel login
-cloudflared tunnel create rolechat
+    ```bash
+    cloudflared tunnel login
+    cloudflared tunnel create rolechat
+    ```
 B) Route DNS
-cloudflared tunnel route dns rolechat api.gowthamchowdam23.online
+    ```bash
+    cloudflared tunnel route dns rolechat api.gowthamchowdam23.online
+    ```
 C) Deploy cloudflared inside Minikube
 
 Create K8s secrets (replace <TUNNEL_ID>):
+    ```bash
+    kubectl create secret generic cloudflared-creds -n rolechat \
+      --from-file=<TUNNEL_ID>.json=$HOME/.cloudflared/<TUNNEL_ID>.json
 
-kubectl create secret generic cloudflared-creds -n rolechat \
-  --from-file=<TUNNEL_ID>.json=$HOME/.cloudflared/<TUNNEL_ID>.json
-
-kubectl create secret generic cloudflared-config -n rolechat \
-  --from-file=config.yml=$HOME/.cloudflared/config.yml
-
+    kubectl create secret generic cloudflared-config -n rolechat \
+      --from-file=config.yml=$HOME/.cloudflared/config.yml
+    ```
 Deploy:
-
-kubectl apply -n rolechat -f k8s/cloudflared-deploy.yaml
-kubectl logs -n rolechat deploy/cloudflared -f
-
+    ```bash
+    kubectl apply -n rolechat -f k8s/cloudflared-deploy.yaml
+    kubectl logs -n rolechat deploy/cloudflared -f
+    ```
 Test:
-
-curl -u "Gowtham:ceopass" https://api.gowthamchowdam23.online/login
+    ```bash
+    curl -u "Gowtham:ceopass" https://api.gowthamchowdam23.online/login
+    ```
 8) Streamlit Cloud Setup (Public Frontend)
 
 Connect the GitHub repo in Streamlit Cloud
@@ -258,10 +345,10 @@ Add .md or .csv files
 Add users for the role in k8s/users-configmap.yaml
 
 Re-run embed job:
-
-kubectl delete job embed-docs -n rolechat
-kubectl apply -n rolechat -f k8s/embed-job.yaml
-
+    ```bash
+    kubectl delete job embed-docs -n rolechat
+    kubectl apply -n rolechat -f k8s/embed-job.yaml
+    ```
 ✅ Add more document types
 
 Extend loaders in app/embed_documents.py (PDF, DOCX, etc.)
