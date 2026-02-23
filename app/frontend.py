@@ -3,6 +3,9 @@ import requests
 from requests.auth import HTTPBasicAuth
 import time
 
+import os
+API_URL = os.getenv("API_URL", "http://localhost:8000")
+
 st.set_page_config(page_title="🧠 Role-Based Chatbot", layout="centered")
 
 
@@ -29,7 +32,7 @@ with st.sidebar:
         if st.button("Login"):
             try:
                 response = requests.get(
-                "https://role-based-aichatbot.onrender.com/login",
+                f"{API_URL}/login",
                  auth=HTTPBasicAuth(username, password)
                  )
                 if response.status_code == 200:
@@ -111,7 +114,7 @@ if st.session_state.user:
             with st.spinner("🤖 Thinking..."):
                 try:
                     response = requests.post(
-                        "https://role-based-aichatbot.onrender.com/chat",
+                        f"{API_URL}/chat",
                         json={
                             "user": st.session_state.user,
                             "message": user_input

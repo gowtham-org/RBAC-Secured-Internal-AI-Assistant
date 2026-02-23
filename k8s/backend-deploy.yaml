@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rolechat-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rolechat-backend
+  template:
+    metadata:
+      labels:
+        app: rolechat-backend
+    spec:
+      containers:
+        - name: backend
+          image: gowthamchowdam94/role-chatbot-api:1.2
+          ports:
+            - containerPort: 8000
+          env:
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: google-api
+                  key: GOOGLE_API_KEY
+            - name: GEMINI_MODEL
+              value: gemini-2.5-flash
+            - name: USERS_FILE
+              value: /config/users.json
+          volumeMounts:
+            - name: users-vol
+              mountPath: /config
+              readOnly: true
+            - name: chroma-vol
+              mountPath: /app/chroma_db
+      volumes:
+        - name: users-vol
+          configMap:
+            name: chatbot-users
+        - name: chroma-vol
+          persistentVolumeClaim:
+            claimName: chroma-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rolechat-backend
+spec:
+  selector:
+    app: rolechat-backend
+  ports:
+    - port: 8000
+      targetPort: 8000

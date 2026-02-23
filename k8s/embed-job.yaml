@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: embed-docs
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: embed
+          image: gowthamchowdam94/role-chatbot-api:1.2
+          command: ["python", "-m", "app.embed_documents"]
+          env:
+            - name: GOOGLE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: google-api
+                  key: GOOGLE_API_KEY
+          volumeMounts:
+            - name: chroma-vol
+              mountPath: /app/chroma_db
+      volumes:
+        - name: chroma-vol
+          persistentVolumeClaim:
+            claimName: chroma-pvc
