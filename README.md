@@ -118,31 +118,6 @@ This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 
 ---
 
-## 🧱 Architecture Diagram
-
-```mermaid
-flowchart LR
-  U[User] -->|Login + Query| S[Streamlit UI]
-  S -->|API Request| F[FastAPI Backend]
-
-  F -->|Auth + Role| A[RBAC Layer]
-  A -->|Role-filtered query| V[ChromaDB Vector Store]
-  V -->|Top-k chunks| F
-
-  F -->|Context + Prompt| G[Google Gemini LLM]
-  G -->|Answer| F
-  F -->|Response| S
-
-  subgraph Kubernetes (Minikube)
-    F
-    V
-    CFT[cloudflared Tunnel Pod]
-  end
-
-  CFT -->|Public HTTPS| URL[api.gowthamchowdam23.online]
-  S -->|Calls Backend| URL
-
----
 
 ## 🏗 Project Structure
 
