@@ -9,6 +9,20 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 
 ---
 
+## ⚠️ Important Note — Local Deployment
+
+> **This project runs locally on a Linux machine using Minikube.**
+>
+> The live demo URLs below (`gowthamchowdam.streamlit.app` and `api.gowthamchowdam23.online`) are only accessible when the local Minikube cluster is running. If the machine is off or Minikube is stopped, the backend will be unreachable and the Streamlit frontend will fail to connect.
+>
+> **To bring the system online:**
+> ```bash
+> minikube start
+> ```
+> Once Minikube is running and all pods are healthy, the dashboard and APIs become accessible via the URLs listed below.
+
+---
+
 ## 🌐 Live Demo
 
 🔗 **Frontend (Streamlit UI):** https://gowthamchowdam.streamlit.app/  
@@ -147,18 +161,15 @@ RBAC-Secured-Internal-AI-Assistant/
 ├── requirements.txt
 ├── README.md
 └── .gitignore
-
+```
 
 ---
 
 ## 🔐 Security Notes
 
-```md
-## 🔐 Security Notes
-
 This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
 
-### What’s protected
+### What's protected
 - Department-specific documents are stored with metadata (role/department tags).
 - Retrieval queries are filtered by the authenticated user's role before sending context to the LLM.
 - Secrets (API keys) are injected via Kubernetes Secrets and should never be committed to the repo.
@@ -180,8 +191,10 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
 - Add audit logs for user queries and document access decisions
 - Use short-lived tokens instead of basic auth (JWT/OAuth)
 
+---
 
-✅ Quickstart (Local Development)
+## ✅ Quickstart (Local Development)
+
 1) Clone the repository
     ```bash
     git clone https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant.git
@@ -214,9 +227,12 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
 
 Open:
 
-Frontend: http://localhost:8501
+- Frontend: http://localhost:8501
+- Backend docs: http://localhost:8000/docs
 
-Backend docs: http://localhost:8000/docs
+---
+
+## ☸️ Kubernetes Deployment (Minikube)
 
 2) Start Minikube + Namespace
     ```bash
@@ -246,6 +262,7 @@ Backend docs: http://localhost:8000/docs
     kubectl logs -n rolechat job/embed-docs -f
     ```
 7) Cloudflare Tunnel (Stable Backend URL)
+
 A) Login + Create tunnel
     ```bash
     cloudflared tunnel login
@@ -276,62 +293,60 @@ Test:
     ```
 8) Streamlit Cloud Setup (Public Frontend)
 
-Connect the GitHub repo in Streamlit Cloud
-
-Set Python version = 3.11
-
-App entry point = app/frontend.py
-
-Add Secrets:
-
+- Connect the GitHub repo in Streamlit Cloud
+- Set Python version = 3.11
+- App entry point = `app/frontend.py`
+- Add Secrets:
+```
 API_URL="https://api.gowthamchowdam23.online"
-🧪 Sample Users & Roles
+```
 
-Users are managed from Kubernetes ConfigMap.
+---
 
 ## 🧪 Sample Users & Roles
+
+Users are managed from Kubernetes ConfigMap.
 
 | Username | Password     | Role              |
 |----------|--------------|-------------------|
 | Gowtham    | ceopass      | c-levelexecutives |
 | Kiran      | employeepass | employee          |
-| Aakanksha     | password123  | engineering       |
+| Aakanksha  | password123  | engineering       |
 | Sahithi    | securepass   | marketing         |
-| Yasasvi      | financepass  | finance           |
-| Shiva  | hrpass123    | hr                |
-| Sid  | sidpass123    | marketing                |
-| Peter  | pete123    | engineering                |
+| Yasasvi    | financepass  | finance           |
+| Shiva      | hrpass123    | hr                |
+| Sid        | sidpass123   | marketing         |
+| Peter      | pete123      | engineering       |
 
 ---
 
-🔧 Update / Revoke Users (No code change required)
+## 🔧 Update / Revoke Users (No code change required)
+```bash
 kubectl edit configmap chatbot-users -n rolechat
-
+```
 Changes apply immediately on next login.
 
-🔧 Extending & Customizing
+---
 
-✅ Add new roles
+## 🔧 Extending & Customizing
 
-Create folder: resources/data/<role>/
+✅ **Add new roles**
 
-Add .md or .csv files
-
-Add users for the role in k8s/users-configmap.yaml
-
-Re-run embed job:
+- Create folder: `resources/data/<role>/`
+- Add `.md` or `.csv` files
+- Add users for the role in `k8s/users-configmap.yaml`
+- Re-run embed job:
     ```bash
     kubectl delete job embed-docs -n rolechat
     kubectl apply -n rolechat -f k8s/embed-job.yaml
     ```
-✅ Add more document types
 
-Extend loaders in app/embed_documents.py (PDF, DOCX, etc.)
+✅ **Add more document types**
 
-✅ Change Gemini model
+- Extend loaders in `app/embed_documents.py` (PDF, DOCX, etc.)
 
-Set GEMINI_MODEL env var in backend deployment:
+✅ **Change Gemini model**
 
-gemini-2.5-flash (fast)
-
-gemini-1.5-pro (higher quality)
+Set `GEMINI_MODEL` env var in backend deployment:
+- `gemini-2.5-flash` (fast)
+- `gemini-1.5-pro` (higher quality)
