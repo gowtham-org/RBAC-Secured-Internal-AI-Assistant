@@ -13,7 +13,7 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 
 > **This project runs locally on a Linux machine using Minikube.**
 >
-> The live demo URLs below (`gowthamchowdam.streamlit.app` and `api.gowthamchowdam23.online`) are only accessible when the local Minikube cluster is running. If the machine is off or Minikube is stopped, the backend will be unreachable and the Streamlit frontend will fail to connect.
+> The live demo URLs below (`gowthamchowdamm.streamlit.app` and `api.gowthamchowdam23.online`) are only accessible when the local Minikube cluster is running. If the machine is off or Minikube is stopped, the backend will be unreachable and the Streamlit frontend will fail to connect.
 >
 > **To bring the system online:**
 > ```bash
@@ -25,7 +25,7 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 
 ## 🌐 Live Demo
 
-🔗 **Frontend (Streamlit UI):** https://gowthamchowdam.streamlit.app/  
+🔗 **Frontend (Streamlit UI):** https://gowthamchowdamm.streamlit.app/  
 🔗 **Backend (Stable URL via Cloudflare Tunnel):** https://api.gowthamchowdam23.online  
 🔗 **Backend API Docs (Swagger):** https://api.gowthamchowdam23.online/docs
 
