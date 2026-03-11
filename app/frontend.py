@@ -4,7 +4,10 @@ from requests.auth import HTTPBasicAuth
 import time
 
 import os
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+try:
+    API_URL = st.secrets["API_URL"]
+except Exception:
+    API_URL = os.getenv("API_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="🧠 Role-Based Chatbot", layout="centered")
 

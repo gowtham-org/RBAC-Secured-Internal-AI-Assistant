@@ -15,8 +15,9 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv
 
-import google.generativeai as genai
-from langchain_community.vectorstores import Chroma
+from google import genai
+from google.genai import types
+from langchain_chroma import Chroma
 
 from app.google_embeddings import GoogleAIStudioEmbeddings
 
@@ -29,9 +30,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("Missing GOOGLE_API_KEY in environment (.env).")
 
-genai.configure(api_key=GOOGLE_API_KEY)
-
-# Choose Gemini model (fast + good):
+client = genai.Client(api_key=GOOGLE_API_KEY)
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # -----------------------------
@@ -144,8 +143,10 @@ Answer:
         # -----------------------------
         # Gemini response
         # -----------------------------
-        model = genai.GenerativeModel(GEMINI_MODEL)
-        result = model.generate_content(prompt)
+        result = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=prompt
+        )
         llm_answer = (result.text or "").strip()
 
         return {

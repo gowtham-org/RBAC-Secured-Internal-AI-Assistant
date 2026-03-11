@@ -15,7 +15,7 @@ spec:
       containers:
         - name: cloudflared
           image: cloudflare/cloudflared:latest
-          args: ["tunnel", "--no-autoupdate", "run"]
+          args: ["tunnel", "--no-autoupdate", "--protocol", "http2", "run"]
           volumeMounts:
             - name: config
               mountPath: /etc/cloudflared/config.yml

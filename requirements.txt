@@ -5,12 +5,22 @@ requests>=2.31,<3.0
 httpx>=0.27,<0.29
 python-dotenv>=1.0,<2.0
 
+# LangChain - versions must stay in sync
 langchain>=0.2.0,<0.3.0
-langchain-community>=0.2.0,<0.3.0
+langchain-chroma>=0.1.0,<0.2.0
 langchain-core>=0.2.0,<0.3.0
+langchain-community>=0.2.0,<0.3.0
 
+# Vector DB
 chromadb==0.4.24
+
+# Document loaders
 unstructured>=0.12.0,<0.15.0
 pandas>=2.0,<3.0
 
-google-generativeai>=0.7.0,<0.9.0
+# Google AI - new SDK
+google-genai>=1.0.0,<2.0.0
+google-api-core>=2.15.0,<3.0.0
+
+# urllib3 pin to fix RequestsDependencyWarning
+urllib3>=1.26.0,<2.0.0
