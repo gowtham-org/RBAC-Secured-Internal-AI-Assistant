@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: gowthamchowdam94/role-chatbot-api:1.2
+          image: gowthamchowdam94/role-chatbot-api:1.6
           ports:
             - containerPort: 8000
           env:
