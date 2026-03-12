@@ -349,4 +349,4 @@ Changes apply immediately on next login.
 
 Set `GEMINI_MODEL` env var in backend deployment:
 - `gemini-2.5-flash` (fast)
-- `gemini-1.5-pro` (higher quality)
+- `gemini-1.5-pro` (higher quality)# CI/CD pipeline test
