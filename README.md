@@ -2,6 +2,8 @@
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI-green)
 ![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-red)
 ![Google%20Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-black)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Hub-2496ED?logo=docker&logoColor=white)
 
 # 🤖 RBAC-Secured Internal AI Assistant (Role-Based RAG Chatbot)
 
@@ -58,6 +60,7 @@ Teams needed an internal AI assistant that:
 - Responds conversationally with grounded answers
 
 ---
+
 ## 🧠 Solution Overview
 
 This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with **Role-Based Filtering**:
@@ -79,6 +82,7 @@ This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 4. **Generate** → Gemini generates answer using retrieved context  
 
 ---
+
 ## 👥 Role-Based Access Control (RBAC)
 
 | Role               | Permissions                                                                 |
@@ -115,28 +119,36 @@ This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 - Typing animation
 - Feedback buttons (👍👎)
 
+### ⚙️ CI/CD Pipeline
+- Automated testing on every PR and push
+- Docker image build and push to Docker Hub on merge to main
+- Automated rolling deployment to Minikube via self-hosted runner
+
 ---
 
 ## 🛠 Tech Stack
 
-| Layer        | Technology                         |
-|-------------|-------------------------------------|
-| Frontend    | Streamlit (Streamlit Cloud)         |
-| Backend     | FastAPI + Uvicorn                   |
-| Embeddings  | Google Gemini Embeddings            |
-| LLM         | Google Gemini                       |
-| Vector DB   | ChromaDB                            |
-| Deployment  | Minikube (Backend) + Streamlit Cloud (Frontend) |
-| Public URL  | Cloudflare Tunnel                   |
-| Language    | Python 3.11                         |
+| Layer        | Technology                                      |
+|-------------|--------------------------------------------------|
+| Frontend    | Streamlit (Streamlit Cloud)                      |
+| Backend     | FastAPI + Uvicorn                                |
+| Embeddings  | Google Gemini Embeddings                         |
+| LLM         | Google Gemini                                    |
+| Vector DB   | ChromaDB                                         |
+| Deployment  | Minikube (Backend) + Streamlit Cloud (Frontend)  |
+| Public URL  | Cloudflare Tunnel                                |
+| CI/CD       | GitHub Actions + Docker Hub                      |
+| Language    | Python 3.11                                      |
 
 ---
-
 
 ## 🏗 Project Structure
 
 ```text
 RBAC-Secured-Internal-AI-Assistant/
+├── .github/
+│   └── workflows/
+│       └── cicd.yml          # GitHub Actions CI/CD pipeline
 ├── app/
 │   ├── __init__.py
 │   ├── embed_documents.py
@@ -144,6 +156,8 @@ RBAC-Secured-Internal-AI-Assistant/
 │   ├── google_embeddings.py
 │   ├── main.py
 │   └── users_loader.py
+├── tests/
+│   └── test_api.py           # Pytest smoke tests
 ├── resources/
 │   └── data/
 │       ├── engineering/
@@ -165,6 +179,117 @@ RBAC-Secured-Internal-AI-Assistant/
 
 ---
 
+## ⚙️ CI/CD Pipeline (GitHub Actions)
+
+This project uses a fully automated CI/CD pipeline triggered on pushes and pull requests to `main`.
+
+### Pipeline Flow
+
+```
+Feature branch push
+        ↓
+PR opened → CI runs (tests + build validation)
+        ↓
+PR merged to main → Full pipeline runs
+        ↓
+  ✅ Tests pass
+  ✅ Docker image built + pushed to Docker Hub
+  ✅ Rolling deploy to Minikube (self-hosted runner)
+        ↓
+Streamlit Cloud auto-redeploys frontend
+```
+
+### Jobs
+
+| Job | Runs On | Trigger | What it does |
+|-----|---------|---------|--------------|
+| 🧪 Test + Build | GitHub servers | Every PR + push to main | Runs pytest, builds Docker image |
+| 🐳 Push to Docker Hub | GitHub servers | Push to main only | Pushes `latest` + `git-sha` tags |
+| 🚀 Deploy to Minikube | Self-hosted runner (your machine) | Push to main only | Rolling update via `kubectl set image` |
+
+### Docker Image Tags
+
+Every merge to `main` produces two tags on Docker Hub:
+
+```
+gowthamchowdam94/role-chatbot-api:latest          # always points to latest
+gowthamchowdam94/role-chatbot-api:<git-sha>        # unique per commit (for rollbacks)
+```
+
+### Rollback to a Previous Version
+
+```bash
+kubectl set image deployment/rolechat-backend \
+  backend=gowthamchowdam94/role-chatbot-api:<previous-sha> \
+  -n rolechat
+```
+
+### Setting Up CI/CD (for contributors / new machines)
+
+#### 1. Add GitHub Secrets
+
+Go to repo → **Settings** → **Secrets and variables** → **Actions**:
+
+```
+DOCKER_USERNAME  →  your Docker Hub username
+DOCKER_PASSWORD  →  your Docker Hub password
+DOCKER_IMAGE     →  your-dockerhub-username/role-chatbot-api
+```
+
+#### 2. Install Self-Hosted Runner (on your Linux/WSL machine)
+
+```bash
+# Create runner folder
+mkdir actions-runner && cd actions-runner
+
+# Download runner (get latest URL from GitHub → Settings → Actions → Runners → New runner)
+curl -o actions-runner-linux-x64-2.x.x.tar.gz -L <URL from GitHub>
+tar xzf ./actions-runner-linux-x64-2.x.x.tar.gz
+
+# Configure
+./config.sh --url https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant --token <TOKEN>
+
+# Install as background service (survives terminal close)
+sudo ./svc.sh install
+sudo ./svc.sh start
+
+# Verify
+sudo ./svc.sh status
+```
+
+#### 3. Verify Runner is Online
+
+Go to repo → **Settings** → **Actions** → **Runners** — should show:
+```
+✅ Online  |  self-hosted  Linux  X64
+```
+
+### PR Workflow for Contributors
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant.git
+cd RBAC-Secured-Internal-AI-Assistant
+
+# 2. Create a feature branch
+git checkout -b feature/your-feature-name
+
+# 3. Make your changes and commit
+git add .
+git commit -m "feat: describe your change"
+git push origin feature/your-feature-name
+
+# 4. Open a PR on GitHub → CI runs automatically
+# 5. Once CI passes and PR is approved → merge
+# 6. Full CI/CD pipeline deploys automatically
+```
+
+> **Note for forks:** The CD (deploy) job only runs on the original repository
+> (`gowtham-org/RBAC-Secured-Internal-AI-Assistant`). Forks will run CI
+> (tests + build) but will not trigger deployment to Minikube.
+
+---
+
 ## 🔐 Security Notes
 
 This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
@@ -183,6 +308,7 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
 - `GOOGLE_API_KEY` is stored in:
   - Local: `.env` (ignored by git)
   - Kubernetes: `Secret` (`google-api`)
+  - CI/CD: GitHub Actions Secrets (`DOCKER_USERNAME`, `DOCKER_PASSWORD`, `DOCKER_IMAGE`)
 - Cloudflare Tunnel credentials are stored in Kubernetes secrets (`cloudflared-creds`, `cloudflared-config`)
 
 ### Recommended hardening (next steps)
@@ -307,8 +433,8 @@ API_URL="https://api.gowthamchowdam23.online"
 
 Users are managed from Kubernetes ConfigMap.
 
-| Username | Password     | Role              |
-|----------|--------------|-------------------|
+| Username   | Password     | Role              |
+|------------|--------------|-------------------|
 | Gowtham    | ceopass      | c-levelexecutives |
 | Kiran      | employeepass | employee          |
 | Aakanksha  | password123  | engineering       |
@@ -349,4 +475,4 @@ Changes apply immediately on next login.
 
 Set `GEMINI_MODEL` env var in backend deployment:
 - `gemini-2.5-flash` (fast)
-- `gemini-1.5-pro` (higher quality)# CI/CD pipeline test
+- `gemini-1.5-pro` (higher quality)
