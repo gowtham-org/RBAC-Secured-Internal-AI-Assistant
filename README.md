@@ -506,16 +506,18 @@ API_URL = "https://<your-backend-domain>"
 
 Users are managed from Kubernetes ConfigMap (`k8s/users-configmap.yaml`).
 
-| Username   | Role              |
-|------------|-------------------|
-| Gowtham    | c-levelexecutives |
-| Kiran      | employee          |
-| Aakanksha  | engineering       |
-| Sahithi    | marketing         |
-| Yasasvi    | finance           |
-| Shiva      | hr                |
-| Sid        | marketing         |
-| Peter      | engineering       |
+
+| Username   | Password     | Role              |
+|------------|--------------|-------------------|
+| Gowtham    | ceopass      | c-levelexecutives |
+| Kiran      | employeepass | employee          |
+| Aakanksha  | password123  | engineering       |
+| Sahithi    | securepass   | marketing         |
+| Yasasvi    | financepass  | finance           |
+| Shiva      | hrpass123    | hr                |
+| Sid        | sidpass123   | marketing         |
+| Peter      | pete123      | engineering       |
+```
 
 > **Note:** Passwords are managed in `k8s/users-configmap.yaml` and should never be committed in plain text to public repos. Rotate them regularly.
 
