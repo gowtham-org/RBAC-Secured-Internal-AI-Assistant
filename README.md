@@ -19,7 +19,7 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 >
 > **To bring the system online:**
 > ```bash
-> minikube start
+> ~/start-rolechat.sh
 > ```
 > Once Minikube is running and all pods are healthy, the dashboard and APIs become accessible via the URLs listed below.
 
@@ -27,8 +27,8 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 
 ## 🌐 Live Demo
 
-🔗 **Frontend (Streamlit UI):** https://gowthamchowdamm.streamlit.app/  
-🔗 **Backend (Stable URL via Cloudflare Tunnel):** https://api.gowthamchowdam23.online  
+🔗 **Frontend (Streamlit UI):** https://gowthamchowdamm.streamlit.app/
+🔗 **Backend (Stable URL via Cloudflare Tunnel):** https://api.gowthamchowdam23.online
 🔗 **Backend API Docs (Swagger):** https://api.gowthamchowdam23.online/docs
 
 ---
@@ -76,10 +76,10 @@ This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 
 ## 🔄 How It Works (Flow)
 
-1. **Login** → user authenticated + role identified  
-2. **Query** → user asks a question  
-3. **Retrieve** → ChromaDB returns top-k relevant chunks *filtered by role*  
-4. **Generate** → Gemini generates answer using retrieved context  
+1. **Login** → user authenticated + role identified
+2. **Query** → user asks a question
+3. **Retrieve** → ChromaDB returns top-k relevant chunks *filtered by role*
+4. **Generate** → Gemini generates answer using retrieved context
 
 ---
 
@@ -212,8 +212,8 @@ Streamlit Cloud auto-redeploys frontend
 Every merge to `main` produces two tags on Docker Hub:
 
 ```
-gowthamchowdam94/role-chatbot-api:latest          # always points to latest
-gowthamchowdam94/role-chatbot-api:<git-sha>        # unique per commit (for rollbacks)
+gowthamchowdam94/role-chatbot-api:latest       # always points to latest
+gowthamchowdam94/role-chatbot-api:<git-sha>    # unique per commit (for rollbacks)
 ```
 
 ### Rollback to a Previous Version
@@ -249,15 +249,81 @@ tar xzf ./actions-runner-linux-x64-2.x.x.tar.gz
 # Configure
 ./config.sh --url https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant --token <TOKEN>
 
-# Install as background service (survives terminal close)
-sudo ./svc.sh install
-sudo ./svc.sh start
-
-# Verify
-sudo ./svc.sh status
+# DO NOT install as a background service
+# Instead use the start/stop scripts below
 ```
 
-#### 3. Verify Runner is Online
+#### 3. Create Start & Stop Scripts
+
+The runner should only run when Minikube is active. Create these two scripts in your home directory:
+
+**`~/start-rolechat.sh`** — run this when you want to work:
+```bash
+#!/bin/bash
+echo "🚀 Starting RoleChat stack..."
+
+echo "⏳ Starting Minikube..."
+minikube start
+
+echo "🔍 Checking pods..."
+kubectl get pods -n rolechat
+
+echo "⚡ Starting GitHub Actions runner..."
+cd ~/actions-runner
+./run.sh &
+echo $! > ~/runner.pid
+
+echo ""
+echo "✅ RoleChat stack is fully online!"
+echo "   Frontend : https://gowthamchowdamm.streamlit.app"
+echo "   Backend  : https://api.gowthamchowdam23.online"
+echo "   Runner   : Online on GitHub"
+```
+
+**`~/stop-rolechat.sh`** — run this when you're done:
+```bash
+#!/bin/bash
+echo "🛑 Stopping RoleChat stack..."
+
+if [ -f ~/runner.pid ]; then
+    kill $(cat ~/runner.pid) 2>/dev/null
+    rm ~/runner.pid
+fi
+pkill -f "Runner.Listener" 2>/dev/null
+echo "⚡ Runner stopped"
+
+minikube stop
+echo "✅ Everything stopped. Safe to close WSL."
+```
+
+Make them executable:
+```bash
+chmod +x ~/start-rolechat.sh ~/stop-rolechat.sh
+```
+
+#### 4. Daily Usage
+
+```bash
+# Start everything
+~/start-rolechat.sh
+
+# Stop everything when done
+~/stop-rolechat.sh
+```
+
+#### 5. Service Behavior by Machine State
+
+| Scenario | Runner | Minikube | Stack |
+|---|---|---|---|
+| Machine OFF | ❌ Off | ❌ Off | ❌ Offline |
+| WSL ON, scripts not run | ❌ Off | ❌ Off | ❌ Offline |
+| `start-rolechat.sh` run | ✅ On | ✅ On | ✅ Fully live |
+| `stop-rolechat.sh` run | ❌ Off | ❌ Off | ❌ Clean shutdown |
+
+> **Note:** CI job (tests + Docker build) always runs on GitHub's servers regardless of your machine state.
+> Only the CD (deploy to Minikube) job requires your machine and runner to be online.
+
+#### 6. Verify Runner is Online
 
 Go to repo → **Settings** → **Actions** → **Runners** — should show:
 ```
