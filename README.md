@@ -212,15 +212,15 @@ Streamlit Cloud auto-redeploys frontend
 Every merge to `main` produces two tags on Docker Hub:
 
 ```
-gowthamchowdam94/role-chatbot-api:latest       # always points to latest
-gowthamchowdam94/role-chatbot-api:<git-sha>    # unique per commit (for rollbacks)
+<your-dockerhub-username>/role-chatbot-api:latest       # always points to latest
+<your-dockerhub-username>/role-chatbot-api:<git-sha>    # unique per commit (for rollbacks)
 ```
 
 ### Rollback to a Previous Version
 
 ```bash
 kubectl set image deployment/rolechat-backend \
-  backend=gowthamchowdam94/role-chatbot-api:<previous-sha> \
+  backend=<your-dockerhub-username>/role-chatbot-api:<previous-sha> \
   -n rolechat
 ```
 
@@ -239,15 +239,17 @@ DOCKER_IMAGE     →  your-dockerhub-username/role-chatbot-api
 #### 2. Install Self-Hosted Runner (on your Linux/WSL machine)
 
 ```bash
-# Create runner folder
+# Create runner folder inside your project directory
+cd /path/to/your/project
 mkdir actions-runner && cd actions-runner
 
-# Download runner (get latest URL from GitHub → Settings → Actions → Runners → New runner)
+# Download runner
+# Get the exact URL from: GitHub → repo → Settings → Actions → Runners → New runner
 curl -o actions-runner-linux-x64-2.x.x.tar.gz -L <URL from GitHub>
 tar xzf ./actions-runner-linux-x64-2.x.x.tar.gz
 
-# Configure
-./config.sh --url https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant --token <TOKEN>
+# Configure (token is shown on the GitHub runner setup page)
+./config.sh --url https://github.com/<your-org>/<your-repo> --token <TOKEN from GitHub>
 
 # DO NOT install as a background service
 # Instead use the start/stop scripts below
@@ -255,7 +257,10 @@ tar xzf ./actions-runner-linux-x64-2.x.x.tar.gz
 
 #### 3. Create Start & Stop Scripts
 
-The runner should only run when Minikube is active. Create these two scripts in your home directory:
+The runner should **only run when Minikube is active**. Create these two scripts in your home directory.
+
+> **Important:** Replace `/path/to/your/project/actions-runner` with the actual path
+> where you cloned the repo and set up the runner on your machine.
 
 **`~/start-rolechat.sh`** — run this when you want to work:
 ```bash
@@ -269,9 +274,10 @@ echo "🔍 Checking pods..."
 kubectl get pods -n rolechat
 
 echo "⚡ Starting GitHub Actions runner..."
-cd ~/actions-runner
+cd /path/to/your/project/actions-runner
 ./run.sh &
 echo $! > ~/runner.pid
+echo "✅ Runner started (PID: $(cat ~/runner.pid))"
 
 echo ""
 echo "✅ RoleChat stack is fully online!"
@@ -304,7 +310,7 @@ chmod +x ~/start-rolechat.sh ~/stop-rolechat.sh
 #### 4. Daily Usage
 
 ```bash
-# Start everything
+# Start everything (Minikube + runner)
 ~/start-rolechat.sh
 
 # Stop everything when done
@@ -320,8 +326,9 @@ chmod +x ~/start-rolechat.sh ~/stop-rolechat.sh
 | `start-rolechat.sh` run | ✅ On | ✅ On | ✅ Fully live |
 | `stop-rolechat.sh` run | ❌ Off | ❌ Off | ❌ Clean shutdown |
 
-> **Note:** CI job (tests + Docker build) always runs on GitHub's servers regardless of your machine state.
-> Only the CD (deploy to Minikube) job requires your machine and runner to be online.
+> **Note:** The CI job (tests + Docker build) always runs on GitHub's servers regardless
+> of your machine state. Only the CD (deploy to Minikube) job requires your machine
+> and runner to be online.
 
 #### 6. Verify Runner is Online
 
@@ -334,7 +341,7 @@ Go to repo → **Settings** → **Actions** → **Runners** — should show:
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant.git
+git clone https://github.com/<your-org>/RBAC-Secured-Internal-AI-Assistant.git
 cd RBAC-Secured-Internal-AI-Assistant
 
 # 2. Create a feature branch
@@ -350,9 +357,8 @@ git push origin feature/your-feature-name
 # 6. Full CI/CD pipeline deploys automatically
 ```
 
-> **Note for forks:** The CD (deploy) job only runs on the original repository
-> (`gowtham-org/RBAC-Secured-Internal-AI-Assistant`). Forks will run CI
-> (tests + build) but will not trigger deployment to Minikube.
+> **Note for forks:** The CD (deploy) job only runs on the original repository.
+> Forks will run CI (tests + build) but will not trigger deployment to Minikube.
 
 ---
 
@@ -376,6 +382,7 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
   - Kubernetes: `Secret` (`google-api`)
   - CI/CD: GitHub Actions Secrets (`DOCKER_USERNAME`, `DOCKER_PASSWORD`, `DOCKER_IMAGE`)
 - Cloudflare Tunnel credentials are stored in Kubernetes secrets (`cloudflared-creds`, `cloudflared-config`)
+- `actions-runner/` folder is added to `.gitignore` — never committed to the repo
 
 ### Recommended hardening (next steps)
 - Enforce HTTPS-only traffic end-to-end
@@ -389,7 +396,7 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
 
 1) Clone the repository
     ```bash
-    git clone https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant.git
+    git clone https://github.com/<your-org>/RBAC-Secured-Internal-AI-Assistant.git
     cd RBAC-Secured-Internal-AI-Assistant
     ```
 2) Create virtual environment (Python 3.11)
@@ -462,11 +469,11 @@ A) Login + Create tunnel
     ```
 B) Route DNS
     ```bash
-    cloudflared tunnel route dns rolechat api.gowthamchowdam23.online
+    cloudflared tunnel route dns rolechat <your-backend-domain>
     ```
 C) Deploy cloudflared inside Minikube
 
-Create K8s secrets (replace <TUNNEL_ID>):
+Create K8s secrets (replace `<TUNNEL_ID>` with your actual tunnel ID):
     ```bash
     kubectl create secret generic cloudflared-creds -n rolechat \
       --from-file=<TUNNEL_ID>.json=$HOME/.cloudflared/<TUNNEL_ID>.json
@@ -481,7 +488,7 @@ Deploy:
     ```
 Test:
     ```bash
-    curl -u "Gowtham:ceopass" https://api.gowthamchowdam23.online/login
+    curl -u "<username>:<password>" https://<your-backend-domain>/login
     ```
 8) Streamlit Cloud Setup (Public Frontend)
 
@@ -489,26 +496,28 @@ Test:
 - Set Python version = 3.11
 - App entry point = `app/frontend.py`
 - Add Secrets:
-```
-API_URL="https://api.gowthamchowdam23.online"
+```toml
+API_URL = "https://<your-backend-domain>"
 ```
 
 ---
 
 ## 🧪 Sample Users & Roles
 
-Users are managed from Kubernetes ConfigMap.
+Users are managed from Kubernetes ConfigMap (`k8s/users-configmap.yaml`).
 
-| Username   | Password     | Role              |
-|------------|--------------|-------------------|
-| Gowtham    | ceopass      | c-levelexecutives |
-| Kiran      | employeepass | employee          |
-| Aakanksha  | password123  | engineering       |
-| Sahithi    | securepass   | marketing         |
-| Yasasvi    | financepass  | finance           |
-| Shiva      | hrpass123    | hr                |
-| Sid        | sidpass123   | marketing         |
-| Peter      | pete123      | engineering       |
+| Username   | Role              |
+|------------|-------------------|
+| Gowtham    | c-levelexecutives |
+| Kiran      | employee          |
+| Aakanksha  | engineering       |
+| Sahithi    | marketing         |
+| Yasasvi    | finance           |
+| Shiva      | hr                |
+| Sid        | marketing         |
+| Peter      | engineering       |
+
+> **Note:** Passwords are managed in `k8s/users-configmap.yaml` and should never be committed in plain text to public repos. Rotate them regularly.
 
 ---
 
