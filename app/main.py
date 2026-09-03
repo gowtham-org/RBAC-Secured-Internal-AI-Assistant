@@ -78,6 +78,9 @@ def login(user=Depends(authenticate)):
 def test(user=Depends(authenticate)):
     return {"message": f"Hello {user['username']}! You can now chat.", "role": user["role"]}
 
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 @app.post("/chat")
 async def chat(request: Request, user=Depends(authenticate)):
