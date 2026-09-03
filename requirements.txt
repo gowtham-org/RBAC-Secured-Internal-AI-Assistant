@@ -24,3 +24,4 @@ google-api-core>=2.15.0,<3.0.0
 
 # urllib3 pin to fix RequestsDependencyWarning
 urllib3>=1.26.0,<2.0.0
+bcrypt==4.2.1

@@ -53,24 +53,19 @@ vectordb = Chroma(
 # -----------------------------
 # Dummy Users Database
 # -----------------------------
-from app.users_loader import load_users
+from app.users_loader import verify_user
 
-users_db: Dict[str, Dict[str, str]] = load_users()
 
 # -----------------------------
 # Helper: Authentication
 # -----------------------------
 def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    users_db = load_users()  # always read latest file
-
     username = (credentials.username or "").strip()
     password = (credentials.password or "").strip()
-
-    user = users_db.get(username)
-    if not user or user["password"] != password:
+    role = verify_user(username, password)
+    if not role:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    return {"username": username, "role": user["role"]}
+    return {"username": username, "role": role}
 # -----------------------------
 # Endpoints
 # -----------------------------

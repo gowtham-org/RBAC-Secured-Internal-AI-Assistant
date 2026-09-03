@@ -5,12 +5,10 @@ metadata:
 data:
   users.json: |
     {
-      "Aakanksha": {"password": "password123", "role": "engineering"},
-      "Sahithi": {"password": "securepass", "role": "marketing"},
-      "Yasasvi": {"password": "financepass", "role": "finance"},
-      "Peter": {"password": "pete123", "role": "engineering"},
-      "Sid": {"password": "sidpass123", "role": "marketing"},
-      "Shiva": {"password": "hrpass123", "role": "hr"},
-      "Gowtham": {"password": "ceopass", "role": "c-levelexecutives"},
-      "Kiran": {"password": "employeepass", "role": "employee"}
+      "Gowtham": {"password_hash": "$2b$12$k37kCgLGjT94gewVL6qJFeyu2s4FlifwifW.jRGN9kF83nsTWG5JS", "role": "c-levelexecutives"},
+      "Kiran": {"password_hash": "$2b$12$WaszPLctTB.umB93HLzq/ecHHznAj0QcFc8L87Z6NPCWga8Ke2JdO", "role": "employee"},
+      "Aakanksha": {"password_hash": "$2b$12$iKfIIzCNK.1F5y6ge4YgBO9PPlTusDgR7aIDh4H0BpYirJwmK4Wd2", "role": "engineering"},
+      "Sahithi": {"password_hash": "$2b$12$i4AnhYknmSkruzwtSDqKf.ZOljESXLlyLQXV94wJHo3vUFxOGCTOq", "role": "marketing"},
+      "Yasasvi": {"password_hash": "$2b$12$rQn8iYqL2u9Y6IiQZQ5CNOPMysIaRUsr60GFhhO.yKaqtm9OELb.S", "role": "finance"},
+      "Shiva": {"password_hash": "$2b$12$DaiOtQW/4EC4Min.ZNjhkOagmfF8rhXaeFl5minr70tjxTktINrwy", "role": "hr"}
     }
