@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
         - name: backend
-          image: gowthamchowdam94/role-chatbot-api:1.8
+          # Bootstrap default. CI overrides this via `kubectl set image` on merge to main.
+          image: gowthamchowdam94/role-chatbot-api:1.9
           ports:
             - containerPort: 8000
           env:
@@ -27,6 +28,33 @@ spec:
               value: gemini-2.5-flash
             - name: USERS_FILE
               value: /config/users.json
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 40
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+
           volumeMounts:
             - name: users-vol
               mountPath: /config
