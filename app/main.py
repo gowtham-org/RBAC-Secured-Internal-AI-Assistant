@@ -8,7 +8,7 @@ Now uses:
 - Google embeddings (text-embedding-004) for semantic search
 """
 
-from typing import Dict
+import logging
 import os
 
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -16,10 +16,13 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv
 
 from google import genai
-from google.genai import types
 from langchain_chroma import Chroma
 
 from app.google_embeddings import GoogleAIStudioEmbeddings
+from app.users_loader import verify_user
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # -----------------------------
 # Env + Google Client Setup
@@ -50,11 +53,6 @@ vectordb = Chroma(
     collection_name="company_docs",
 )
 
-# -----------------------------
-# Dummy Users Database
-# -----------------------------
-from app.users_loader import verify_user
-
 
 # -----------------------------
 # Helper: Authentication
@@ -66,6 +64,8 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
     if not role:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"username": username, "role": role}
+
+
 # -----------------------------
 # Endpoints
 # -----------------------------
@@ -73,22 +73,26 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
 def login(user=Depends(authenticate)):
     return {"message": f"Welcome {user['username']}!", "role": user["role"]}
 
+
 @app.get("/test")
 def test(user=Depends(authenticate)):
     return {"message": f"Hello {user['username']}! You can now chat.", "role": user["role"]}
 
+
 @app.post("/chat")
-async def chat(request: Request):
+async def chat(request: Request, user=Depends(authenticate)):
     """
     Main chat endpoint:
-    - Retrieves relevant documents from ChromaDB based on user role
-    - Uses Google embeddings for semantic search
+    - Role comes from the authenticated session, never from the request body
+    - Retrieves relevant documents from ChromaDB based on that role
     - Uses Gemini to generate the final answer
     """
     try:
         data = await request.json()
-        user = data["user"]
-        message = data["message"]
+        message = data.get("message", "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Missing 'message' in request body")
+
         user_role = user["role"].lower()
 
         # -----------------------------
@@ -109,6 +113,11 @@ async def chat(request: Request):
         else:
             docs = vectordb.similarity_search(message, k=3, filter={"role": user["role"]})
 
+        logger.info(
+            "chat request | user=%s role=%s docs_returned=%d",
+            user["username"], user["role"], len(docs),
+        )
+
         if not docs:
             return {"response": f"No relevant data found for your role: {user['role']}"}
 
@@ -124,7 +133,7 @@ The user has the role: {user['role']}
 
 Use the context below to answer the user's question in a friendly, clear, conversational style.
 Summarize naturally; do not just dump bullet points.
-If the context is insufficient, say what’s missing and ask 1–2 clarifying questions.
+If the context is insufficient, say what's missing and ask 1-2 clarifying questions.
 
 Context:
 {context}
@@ -138,18 +147,18 @@ Answer:
         # -----------------------------
         # Gemini response
         # -----------------------------
-        result = client.models.generate_content(
-        model=GEMINI_MODEL,
-        contents=prompt
-        )
+        result = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
         llm_answer = (result.text or "").strip()
 
         return {
             "username": user["username"],
             "role": user["role"],
             "query": message,
-            "response": llm_answer if llm_answer else "⚠️ Empty response from Gemini.",
+            "response": llm_answer if llm_answer else "Empty response from Gemini.",
         }
 
-    except Exception as e:
-        return {"response": f"Error during chat: {str(e)}"}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("chat failed for user=%s", user["username"])
+        raise HTTPException(status_code=500, detail="Internal error while processing chat request")
