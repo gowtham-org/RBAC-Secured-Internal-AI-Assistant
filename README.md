@@ -31,6 +31,7 @@ A secure, production-ready internal AI chatbot powered by **Google Gemini + Vect
 🔗 **Backend (Stable URL via Cloudflare Tunnel):** https://api.gowthamchowdam23.online
 🔗 **Backend API Docs (Swagger):** https://api.gowthamchowdam23.online/docs
 
+> The demo requires credentials. See Users & Roles below.
 ---
 
 ## 🖼 Screenshots
@@ -81,18 +82,6 @@ This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with
 3. **Retrieve** → ChromaDB returns top-k relevant chunks *filtered by role*
 4. **Generate** → Gemini generates answer using retrieved context
 
----
-
-## 👥 Role-Based Access Control (RBAC)
-
-| Role               | Permissions                                                                 |
-|--------------------|-----------------------------------------------------------------------------|
-| C-Level Executives | Full unrestricted access to all documents                                   |
-| Finance Team       | Financial reports, expenses, reimbursements                                 |
-| Marketing Team     | Campaign performance, customer insights, sales data                         |
-| HR Team            | Employee handbook, attendance, leave, payroll                               |
-| Engineering Dept.  | System architecture, deployment, CI/CD                                      |
-| Employees          | General information (FAQs, company policies, events)                        |
 
 ---
 
@@ -364,7 +353,8 @@ git push origin feature/your-feature-name
 
 ## 🔐 Security Notes
 
-This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
+- This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
+- Demo credentials are not published; accounts are provisioned on request.
 
 ### What's protected
 - Department-specific documents are stored with metadata (role/department tags).
@@ -389,7 +379,7 @@ This system is designed to reduce internal data leakage in RAG by enforcing **ro
 - Add rate limiting (FastAPI middleware / API gateway)
 - Add audit logs for user queries and document access decisions
 - Use short-lived tokens instead of basic auth (JWT/OAuth)
-
+- free tier only, no billing account — set a budget before ever enabling billing.
 ---
 
 ## ✅ Quickstart (Local Development)
@@ -502,24 +492,19 @@ API_URL = "https://<your-backend-domain>"
 
 ---
 
-## 🧪 Sample Users & Roles
+## 👥 Role-Based Access Control (RBAC) 🧪 Sample Users & Roles
 
-Users are managed from Kubernetes ConfigMap (`k8s/users-configmap.yaml`).
+| Role               | Permissions                                                                 |
+|--------------------|-----------------------------------------------------------------------------|
+| C-Level Executives | Full unrestricted access to all documents                                   |
+| Finance Team       | Financial reports, expenses, reimbursements                                 |
+| Marketing Team     | Campaign performance, customer insights, sales data                         |
+| HR Team            | Employee handbook, attendance, leave, payroll                               |
+| Engineering Dept.  | System architecture, deployment, CI/CD                                      |
+| Employees          | General information (FAQs, company policies, events)                        |
 
-
-| Username   | Password     | Role              |
-|------------|--------------|-------------------|
-| Gowtham    | ceopass      | c-levelexecutives |
-| Kiran      | employeepass | employee          |
-| Aakanksha  | password123  | engineering       |
-| Sahithi    | securepass   | marketing         |
-| Yasasvi    | financepass  | finance           |
-| Shiva      | hrpass123    | hr                |
-| Sid        | sidpass123   | marketing         |
-| Peter      | pete123      | engineering       |
-```
-
-> **Note:** Passwords are managed in `k8s/users-configmap.yaml` and should never be committed in plain text to public repos. Rotate them regularly.
+**Want to try it?** Open an issue or reach out and I'll provision a scoped
+demo account. Or clone the repo and define your own users locally.
 
 ---
 
