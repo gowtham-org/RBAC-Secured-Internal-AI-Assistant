@@ -1,0 +1,18 @@
+{
+  "finance_user": {
+    "password_hash": "$2b$12$UrezhLM.X8DtZHgUtBVpE.E0gXE/wkvauCuMaxT0AWqcepSA.HoVC",
+    "role": "finance"
+  },
+  "hr_user": {
+    "password_hash": "$2b$12$WhIMpLE/PhcNIatpn3wuteU9LIcugtUje1obBsBAdvZNWZ8PKrGq2",
+    "role": "hr"
+  },
+  "clevel_user": {
+    "password_hash": "$2b$12$WWVQp/HioPaB7OUXc4Q7LeSiBbMN/JqUZlXj1NRDJ1dO/yZCCRLbu",
+    "role": "c-levelexecutives"
+  },
+  "employee_user": {
+    "password_hash": "$2b$12$2bdTE4oU/SFAeAwXYW/Q1e.Dr02s/YTbwY4mPXC0YZeCpO7buLhOS",
+    "role": "employee"
+  }
+}
