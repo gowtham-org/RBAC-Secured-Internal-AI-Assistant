@@ -63,8 +63,9 @@ spec:
               mountPath: /app/chroma_db
       volumes:
         - name: users-vol
-          configMap:
-            name: chatbot-users
+          secret:
+            secretName: chatbot-users
+            defaultMode: 0400
         - name: chroma-vol
           persistentVolumeClaim:
             claimName: chroma-pvc
