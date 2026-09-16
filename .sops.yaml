@@ -1,3 +1,6 @@
 creation_rules:
   - path_regex: .*\.enc\.yaml$
     age: age10jftd4a6z00h37trzsvrst5nsqu477tx67yfxqdhf07gj233tu3q6peps3
+  - path_regex: k8s/.*secret.*\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: age10jftd4a6z00h37trzsvrst5nsqu477tx67yfxqdhf07gj233tu3q6peps3

@@ -54,3 +54,4 @@ coverage.xml
 chroma_db/
 
 actions-runner/
+k8s/users-secret.yaml
