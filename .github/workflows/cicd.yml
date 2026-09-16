@@ -66,9 +66,10 @@ jobs:
         run: |
           eval $(minikube docker-env)
           docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }}
-      - name: 🔐 Apply users secret (SOPS)
+            - name: 🔐 Apply users secret (SOPS)
         run: |
           sops -d k8s/users-secret.enc.yaml | kubectl apply -n rolechat -f -
+          sops -d k8s/google-api-secret.enc.yaml | kubectl apply -n rolechat -f -
       - name: 🚀 Update backend deployment
         run: |
           kubectl set image deployment/rolechat-backend \
