@@ -1,9 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - backend-deploy.yaml
-  - chroma-pvc.yaml
-  - cloudflared-deploy.yaml
+- backend-deploy.yaml
+- chroma-pvc.yaml
+- cloudflared-deploy.yaml
 images:
-  - name: gowthamchowdam94/role-chatbot-api
-    newTag: "634c112f59b502c0a17a500e18dbc6f42bb7bcbd"
+- name: gowthamchowdam94/role-chatbot-api
+  newName: gowthamchowdam94/role-chatbot-api
+  newTag: e7bafdad3d32bea8ea4845348071ea493bf43da4
