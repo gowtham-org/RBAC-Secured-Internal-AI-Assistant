@@ -68,8 +68,9 @@ jobs:
           docker pull ${{ env.IMAGE_NAME }}:${{ github.sha }}
       - name: 🔐 Apply users secret (SOPS)
         run: |
-          sops -d k8s/users-secret.enc.yaml | kubectl apply -n rolechat -f -
-          sops -d k8s/google-api-secret.enc.yaml | kubectl apply -n rolechat -f -
+          set -euo pipefail
+          sops -d k8s/secrets/users-secret.enc.yaml      | kubectl apply -n rolechat -f -
+          sops -d k8s/secrets/google-api-secret.enc.yaml | kubectl apply -n rolechat -f -
       - name: 🚀 Update backend deployment
         run: |
           kubectl set image deployment/rolechat-backend \
