@@ -7,4 +7,4 @@ resources:
   - embed-job.yaml
 images:
   - name: gowthamchowdam94/role-chatbot-api
-    newTag: "1.9"
+    newTag: "634c112f59b502c0a17a500e18dbc6f42bb7bcbd"

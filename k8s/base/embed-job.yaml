@@ -2,6 +2,8 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: embed-docs
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   backoffLimit: 1
   template:
