@@ -55,3 +55,10 @@ chroma_db/
 
 actions-runner/
 k8s/users-secret.yaml
+
+# Installers
+*.deb
+
+# Plaintext secrets (pre-encryption) — only .enc.yaml may be committed
+k8s/**/*-secret.yaml
+!k8s/**/*.enc.yaml
