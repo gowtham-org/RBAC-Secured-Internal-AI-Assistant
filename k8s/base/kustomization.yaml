@@ -4,7 +4,6 @@ resources:
   - backend-deploy.yaml
   - chroma-pvc.yaml
   - cloudflared-deploy.yaml
-  - embed-job.yaml
 images:
   - name: gowthamchowdam94/role-chatbot-api
     newTag: "634c112f59b502c0a17a500e18dbc6f42bb7bcbd"
