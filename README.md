@@ -1,540 +1,426 @@
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-![FastAPI](https://img.shields.io/badge/Backend-FastAPI-green)
-![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-red)
-![Google%20Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-black)
-![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-Hub-2496ED?logo=docker&logoColor=white)
+# README Update Guide — GitOps + SOPS Migration
 
-# 🤖 RBAC-Secured Internal AI Assistant (Role-Based RAG Chatbot)
-
-A secure, production-ready internal AI chatbot powered by **Google Gemini + Vector Search (RAG)** — with **Role-Based Access Control (RBAC)** for Finance, HR, Engineering, Marketing, Employees, and C-Level Executives.
+What changed in the project, and exactly which README sections to edit.
+Each block below is ready to paste.
 
 ---
 
+## Summary of what we changed
+
+| Area | Before | After |
+|---|---|---|
+| User store | `ConfigMap` with bcrypt hashes, plaintext in git | SOPS-encrypted `Secret` (`k8s/secrets/users-secret.enc.yaml`) |
+| Gemini API key | Manually created Secret, not in git | SOPS-encrypted `Secret` in git |
+| Cloudflared creds/config | Manually created, not in git | SOPS-encrypted Secrets in git |
+| Manifest layout | Flat `k8s/*.yaml` | Kustomize: `k8s/base/`, `k8s/secrets/`, `k8s/jobs/` |
+| Secret decryption | `sops -d \| kubectl apply` in CI on the laptop | KSOPS plugin inside the ArgoCD repo-server |
+| Deployment | CI ran `kubectl set image` via self-hosted runner | GitOps — CI bumps the image tag in git, ArgoCD syncs |
+| Deploy runner | Self-hosted runner on the laptop (required online) | GitHub-hosted runner; ArgoCD pulls from git |
+| Image tag | Mutable `1.9` / `latest` in the manifest | Immutable git SHA, tracked in `k8s/base/kustomization.yaml` |
+| Drift | Undetected | ArgoCD self-heal reverts out-of-band changes |
+| Embed job | Applied with every deploy | Manual one-off in `k8s/jobs/` (hash-named automation planned) |
+| Role validation | None | `ALLOWED_ROLES` + `disabled` flag in `users_loader.py` |
+
+---
+
+## 1. Section `## 🏗 Project Structure` (line ~134)
+
+Replace the tree with:
+
+```
+RBAC-Secured-Internal-AI-Assistant/
+├── .github/workflows/
+│   └── cicd.yml                      # CI: test, build, push, bump image tag in git
+├── app/
+│   ├── embed_documents.py            # builds the Chroma vector DB
+│   ├── frontend.py                   # Streamlit UI
+│   ├── google_embeddings.py          # Gemini embeddings wrapper
+│   ├── main.py                       # FastAPI backend
+│   └── users_loader.py               # auth + role validation
+├── argocd/
+│   ├── values.yaml                   # ArgoCD Helm values (KSOPS init container, age key mount)
+│   └── rolechat-app.yaml             # ArgoCD Application definition
+├── k8s/
+│   ├── kustomization.yaml            # root overlay — ArgoCD points here
+│   ├── base/
+│   │   ├── kustomization.yaml        # resource list + image tag (CI updates this)
+│   │   ├── backend-deploy.yaml
+│   │   ├── chroma-pvc.yaml
+│   │   └── cloudflared-deploy.yaml
+│   ├── secrets/
+│   │   ├── kustomization.yaml
+│   │   ├── secret-generator.yaml     # KSOPS generator
+│   │   ├── users-secret.enc.yaml     # SOPS-encrypted
+│   │   ├── google-api-secret.enc.yaml
+│   │   ├── cloudflared-creds.enc.yaml
+│   │   └── cloudflared-config.enc.yaml
+│   └── jobs/
+│       └── embed-job.yaml            # run manually when documents change
+├── credentials/
+│   └── user-passwords.enc.yaml       # SOPS-encrypted record of user passwords
+├── resources/data/                   # department document folders
+├── scripts/
+│   └── hash_password.py              # generate a bcrypt hash for a new user
+├── tests/
+├── .sops.yaml                        # SOPS creation rules
+├── Dockerfile
+└── README.md
+```
+
+---
+
+## 2. Section `## ⚙️ CI/CD Pipeline (GitHub Actions)` (line ~171)
+
+Replace everything from this heading down to `### PR Workflow for Contributors`
+(this removes the self-hosted runner setup, the start/stop scripts, and the
+machine-state table, which no longer apply to deploys).
+
+```markdown
+## ⚙️ CI/CD Pipeline (GitOps with ArgoCD)
+
+Deployment is **pull-based**. CI never talks to the cluster — it only updates
+git. ArgoCD, running inside the cluster, notices the change and applies it.
+
+### Pipeline flow
+
+```
+push to main
+    │
+    ▼
+[ CI — GitHub-hosted runner ]
+  pytest → docker build → push to Docker Hub (latest + <git-sha>)
+    │
+    ▼
+[ CD — GitHub-hosted runner ]
+  kustomize edit set image <repo>:<git-sha>
+  commit "chore: bump image to <sha> [skip ci]" → push
+    │
+    ▼
+[ ArgoCD — in-cluster ]
+  detects the new commit → kustomize build (KSOPS decrypts secrets)
+  → applies to the rolechat namespace → rolling update
+```
+
+### Why pull-based
+
+- **No laptop needed to deploy.** CI runs entirely on GitHub's runners.
+- **Git is the single source of truth.** What's in `k8s/` is what's running.
+- **Drift is caught.** `selfHeal` reverts anything changed with `kubectl`.
+- **Rollback is a git revert.** No manual `kubectl set image`.
+
+### Image tags
+
+| Tag | Purpose |
+|---|---|
+| `latest` | convenience only — never deployed |
+| `<git-sha>` | immutable, this is what gets deployed |
+
+The deployed tag lives in `k8s/base/kustomization.yaml` under `images[].newTag`,
+so `git log -p k8s/base/kustomization.yaml` is a full deployment history.
+
+### Rollback
+
+```bash
+# find the commit that set the previous tag
+git log --oneline -- k8s/base/kustomization.yaml
+
+# revert it
+git revert <commit-sha>
+git push
+```
+
+ArgoCD syncs the previous image within ~3 minutes. Or use
+**History and Rollback** in the ArgoCD UI for an immediate revert.
+
+### GitHub Secrets required
+
+| Secret | Purpose |
+|---|---|
+| `DOCKER_USERNAME` | Docker Hub login |
+| `DOCKER_PASSWORD` | Docker Hub token |
+| `DOCKER_IMAGE` | full image name, e.g. `user/role-chatbot-api` |
+
+The age private key is **not** a GitHub Secret. It never leaves the laptop and
+the cluster — CI has no access to any encrypted secret.
+```
+
+---
+
+## 3. Section `### Secrets handling` (line ~369)
+
+Replace with:
+
+```markdown
+### Secrets handling
+
+All secrets live in git, encrypted with [SOPS](https://github.com/getsops/sops)
+and [age](https://github.com/FiloSottile/age). Nothing is ever committed in
+plaintext.
+
+| Secret | File | What it holds |
+|---|---|---|
+| `chatbot-users` | `k8s/secrets/users-secret.enc.yaml` | usernames, bcrypt hashes, roles |
+| `google-api` | `k8s/secrets/google-api-secret.enc.yaml` | Gemini API key |
+| `cloudflared-creds` | `k8s/secrets/cloudflared-creds.enc.yaml` | tunnel credentials |
+| `cloudflared-config` | `k8s/secrets/cloudflared-config.enc.yaml` | tunnel config |
+
+**Two layers of protection:**
+
+1. **SOPS/age** encrypts the file in git. Only `data` / `stringData` is
+   encrypted, so `kind`, `name` and `namespace` stay readable and diffs are
+   reviewable.
+2. **bcrypt** hashes the passwords themselves. Even someone with
+   `kubectl get secret` access sees hashes, never usable passwords.
+
+**Decryption at deploy time:** the ArgoCD repo-server runs the
+[KSOPS](https://github.com/viaduct-ai/kustomize-sops) kustomize plugin. It
+decrypts in memory during `kustomize build` — plaintext never touches disk and
+never enters git or CI.
+
+**.sops.yaml rules** (order matters — SOPS uses the first match):
+
+```yaml
+creation_rules:
+  # K8s Secret manifests — encrypt only the data
+  - path_regex: k8s/.*\.enc\.yaml$
+    encrypted_regex: ^(data|stringData)$
+    age: <your age public key>
+
+  # Everything else — encrypt all values
+  - path_regex: .*\.enc\.yaml$
+    age: <your age public key>
+```
+
+**Role validation:** `users_loader.py` checks each role against `ALLOWED_ROLES`
+and honours a `"disabled": true` flag, so a typo in the secret fails loudly
+instead of silently granting the wrong access.
+```
+
+---
+
+## 4. Section `### Recommended hardening (next steps)` (line ~377)
+
+Replace the list with what's done vs. still open:
+
+```markdown
+### Hardening status
+
+**Done**
+
+- [x] Secrets encrypted at rest in git (SOPS + age)
+- [x] Passwords stored as bcrypt hashes, never plaintext
+- [x] Role allow-list validation + per-user disable flag
+- [x] Rate limiting on the API
+- [x] GitOps deploys — no cluster credentials in CI
+- [x] Immutable SHA-tagged images with git-tracked deploy history
+
+**Next**
+
+- [ ] Replace HTTP Basic auth with short-lived JWTs
+- [ ] Audit log of every query (user, role, documents retrieved, allow/deny)
+- [ ] NetworkPolicies between the backend and the vector DB
+- [ ] Prometheus / Grafana metrics and SLOs
+- [ ] RAG evaluation (RAGAS) gating in CI
+```
+
+---
+
+## 5. Section `## ☸️ Kubernetes Deployment (Minikube)` (line ~424)
+
+Replace the manual `kubectl apply` sequence with:
+
+```markdown
+## ☸️ Kubernetes Deployment (Minikube + ArgoCD)
+
+### Prerequisites
+
+```bash
+minikube start --cpus=4 --memory=8g
+# sops, age and kustomize installed locally
+# your age private key at ~/.config/sops/age/keys.txt
+```
+
+### 1. Install ArgoCD with KSOPS support
+
+```bash
+kubectl create namespace argocd
+
+# bootstrap the age key — the only manual secret, by necessity:
+# the key that decrypts everything else cannot itself be stored encrypted
+kubectl create secret generic sops-age -n argocd \
+  --from-file=keys.txt=$HOME/.config/sops/age/keys.txt
+
+helm repo add argo https://argoproj.github.io/argo-helm && helm repo update
+helm install argocd argo/argo-cd -n argocd -f argocd/values.yaml
+```
+
+`argocd/values.yaml` does three things:
+
+- an init container copies the `ksops` binary into the repo-server
+- `kustomize.buildOptions: --enable-alpha-plugins --enable-exec` allows the plugin to run
+- mounts the age key and sets `SOPS_AGE_KEY_FILE`
+
+### 2. Create the Application
+
+```bash
+kubectl apply -f argocd/rolechat-app.yaml
+```
+
+ArgoCD then watches `k8s/` on `main` and syncs automatically, with `selfHeal`
+reverting any out-of-band `kubectl` change.
+
+### 3. Build the vector DB (first time, and after document changes)
+
+```bash
+kubectl create -f k8s/jobs/embed-job.yaml
+kubectl logs -f job/embed-docs -n rolechat
+kubectl delete job embed-docs -n rolechat
+```
+
+The embed job is deliberately outside ArgoCD: it's a one-off action, not a
+desired state, and Jobs are immutable so ArgoCD cannot reconcile them cleanly.
+
+### 4. Access the ArgoCD UI
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d; echo
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+# https://localhost:8080 — user: admin
+```
+
+### Verify locally before pushing
+
+```bash
+export SOPS_AGE_KEY_FILE=$HOME/.config/sops/age/keys.txt
+kustomize build --enable-alpha-plugins --enable-exec k8s/
+```
+```
+
+---
+
+## 6. Section `## 🔧 Update / Revoke Users (No code change required)` (line ~511)
+
+Replace with:
+
+```markdown
+## 🔧 Add / Update / Revoke Users
+
+No redeploy and no code change. Users live in a SOPS-encrypted Secret that the
+backend re-reads on every login.
+
+### Add a user
+
+```bash
+# 1. generate a bcrypt hash (the password is never echoed or stored)
+python scripts/hash_password.py
+
+# 2. open the encrypted file — SOPS decrypts it in your editor and
+#    re-encrypts it on save
+sops k8s/secrets/users-secret.enc.yaml
+
+# 3. add the entry
+#    "NewUser": {"password_hash": "$2b$12$...", "role": "finance"}
+
+# 4. commit and push — ArgoCD applies the Secret
+git add k8s/secrets/users-secret.enc.yaml
+git commit -m "chore: add user NewUser"
+git push
+```
+
+The mounted Secret refreshes within 1–2 minutes. For an immediate update:
+
+```bash
+kubectl rollout restart deploy/rolechat-backend -n rolechat
+```
+
+### Disable a user
+
+Add `"disabled": true` to their entry and push. Their login is rejected while
+the record is kept for audit purposes.
+
+### Valid roles
+
+`c-levelexecutives`, `finance`, `marketing`, `hr`, `engineering`, `employee`
+
+Anything else is rejected by `ALLOWED_ROLES` in `users_loader.py`, so a typo
+can never silently grant the wrong access.
+```
+
+---
+
+## 7. Section `## ⚠️ Important Note — Local Deployment` (line ~14)
+
+Small edit — the demo is still laptop-bound, but deploys are not:
+
+```markdown
 ## ⚠️ Important Note — Local Deployment
 
-> **This project runs locally on a Linux machine using Minikube.**
->
-> The live demo URLs below (`gowthamchowdamm.streamlit.app` and `api.gowthamchowdam23.online`) are only accessible when the local Minikube cluster is running. If the machine is off or Minikube is stopped, the backend will be unreachable and the Streamlit frontend will fail to connect.
->
-> **To bring the system online:**
-> ```bash
-> ~/start-rolechat.sh
-> ```
-> Once Minikube is running and all pods are healthy, the dashboard and APIs become accessible via the URLs listed below.
+The cluster runs on Minikube on a local machine, so the **live demo URLs are
+only reachable while that machine is running**. The backend becomes unreachable
+when it's off.
 
----
-
-## 🌐 Live Demo
-
-🔗 **Frontend (Streamlit UI):** https://gowthamchowdamm.streamlit.app/
-🔗 **Backend (Stable URL via Cloudflare Tunnel):** https://api.gowthamchowdam23.online
-🔗 **Backend API Docs (Swagger):** https://api.gowthamchowdam23.online/docs
-
-> The demo requires credentials. See Users & Roles below.
----
-
-## 🖼 Screenshots
-
-### 🖥 Streamlit UI (Chat + Login)
-<img width="1920" height="1080" alt="RBAC RAG Chatbot UI" src="https://github.com/user-attachments/assets/500fab48-c69f-4661-86d2-38c594a44363" />
-
-### 📚 API Docs (FastAPI Swagger)
-Open: https://api.gowthamchowdam23.online/docs
-
----
-
-## 🧩 Problem Background
-
-**Nexora Health Systems**, a fast-growing healthcare enterprise, faced:
-
-- Fragmented internal documents across departments
-- Slow resolution due to repetitive Q&A and manual lookups
-- Security risks when sensitive documents were shared incorrectly
-- No centralized, role-aware internal knowledge retrieval system
-
-Teams needed an internal AI assistant that:
-
-- Understands context and intent
-- Enforces role-based access policies
-- Retrieves department-specific knowledge only
-- Responds conversationally with grounded answers
-
----
-
-## 🧠 Solution Overview
-
-This project implements a **Retrieval-Augmented Generation (RAG)** pipeline with **Role-Based Filtering**:
-
-- User logs in (RBAC enforced)
-- User asks a question
-- System performs semantic search in **ChromaDB**
-- Only **role-permitted documents** are retrieved
-- Context is sent to **Google Gemini**
-- Gemini generates the final grounded answer
-
----
-
-## 🔄 How It Works (Flow)
-
-1. **Login** → user authenticated + role identified
-2. **Query** → user asks a question
-3. **Retrieve** → ChromaDB returns top-k relevant chunks *filtered by role*
-4. **Generate** → Gemini generates answer using retrieved context
-
-
----
-
-## 🚀 Features
-
-### 🔐 Secure Retrieval
-- Metadata-based **role filtering**
-- Prevents cross-department data leakage
-
-### 🔎 Semantic Search (RAG)
-- Gemini embeddings (`models/gemini-embedding-001`)
-- Chroma vector database
-- Fast similarity search
-
-### 💬 Conversational AI
-- Google Gemini LLM (default: `gemini-2.5-flash`)
-- Context-aware responses
-- Friendly, human-like tone
-
-### 🖥 Interactive UI
-- Streamlit frontend
-- Login panel
-- Session-based chat history
-- Typing animation
-- Feedback buttons (👍👎)
-
-### ⚙️ CI/CD Pipeline
-- Automated testing on every PR and push
-- Docker image build and push to Docker Hub on merge to main
-- Automated rolling deployment to Minikube via self-hosted runner
-
----
-
-## 🛠 Tech Stack
-
-| Layer        | Technology                                      |
-|-------------|--------------------------------------------------|
-| Frontend    | Streamlit (Streamlit Cloud)                      |
-| Backend     | FastAPI + Uvicorn                                |
-| Embeddings  | Google Gemini Embeddings                         |
-| LLM         | Google Gemini                                    |
-| Vector DB   | ChromaDB                                         |
-| Deployment  | Minikube (Backend) + Streamlit Cloud (Frontend)  |
-| Public URL  | Cloudflare Tunnel                                |
-| CI/CD       | GitHub Actions + Docker Hub                      |
-| Language    | Python 3.11                                      |
-
----
-
-## 🏗 Project Structure
-
-```text
-RBAC-Secured-Internal-AI-Assistant/
-├── .github/
-│   └── workflows/
-│       └── cicd.yml          # GitHub Actions CI/CD pipeline
-├── app/
-│   ├── __init__.py
-│   ├── embed_documents.py
-│   ├── frontend.py
-│   ├── google_embeddings.py
-│   ├── main.py
-│   └── users_loader.py
-├── tests/
-│   └── test_api.py           # Pytest smoke tests
-├── resources/
-│   └── data/
-│       ├── engineering/
-│       ├── finance/
-│       ├── general/
-│       ├── hr/
-│       └── marketing/
-├── k8s/
-│   ├── backend-deploy.yaml
-│   ├── chroma-pvc.yaml
-│   ├── cloudflared-deploy.yaml
-│   ├── embed-job.yaml
-│   └── users-configmap.yaml
-├── Dockerfile
-├── requirements.txt
-├── README.md
-└── .gitignore
+Deployment itself no longer depends on that machine. CI runs on GitHub-hosted
+runners and only writes to git; ArgoCD applies the change when the cluster is
+up. Pushes made while the laptop is off are applied automatically the next time
+it starts.
 ```
 
 ---
 
-## ⚙️ CI/CD Pipeline (GitHub Actions)
+## 8. Section `## 🛠 Tech Stack` (line ~118)
 
-This project uses a fully automated CI/CD pipeline triggered on pushes and pull requests to `main`.
+Add a row or bullet:
 
-### Pipeline Flow
-
-```
-Feature branch push
-        ↓
-PR opened → CI runs (tests + build validation)
-        ↓
-PR merged to main → Full pipeline runs
-        ↓
-  ✅ Tests pass
-  ✅ Docker image built + pushed to Docker Hub
-  ✅ Rolling deploy to Minikube (self-hosted runner)
-        ↓
-Streamlit Cloud auto-redeploys frontend
-```
-
-### Jobs
-
-| Job | Runs On | Trigger | What it does |
-|-----|---------|---------|--------------|
-| 🧪 Test + Build | GitHub servers | Every PR + push to main | Runs pytest, builds Docker image |
-| 🐳 Push to Docker Hub | GitHub servers | Push to main only | Pushes `latest` + `git-sha` tags |
-| 🚀 Deploy to Minikube | Self-hosted runner (your machine) | Push to main only | Rolling update via `kubectl set image` |
-
-### Docker Image Tags
-
-Every merge to `main` produces two tags on Docker Hub:
-
-```
-<your-dockerhub-username>/role-chatbot-api:latest       # always points to latest
-<your-dockerhub-username>/role-chatbot-api:<git-sha>    # unique per commit (for rollbacks)
-```
-
-### Rollback to a Previous Version
-
-```bash
-kubectl set image deployment/rolechat-backend \
-  backend=<your-dockerhub-username>/role-chatbot-api:<previous-sha> \
-  -n rolechat
-```
-
-### Setting Up CI/CD (for contributors / new machines)
-
-#### 1. Add GitHub Secrets
-
-Go to repo → **Settings** → **Secrets and variables** → **Actions**:
-
-```
-DOCKER_USERNAME  →  your Docker Hub username
-DOCKER_PASSWORD  →  your Docker Hub password
-DOCKER_IMAGE     →  your-dockerhub-username/role-chatbot-api
-```
-
-#### 2. Install Self-Hosted Runner (on your Linux/WSL machine)
-
-```bash
-# Create runner folder inside your project directory
-cd /path/to/your/project
-mkdir actions-runner && cd actions-runner
-
-# Download runner
-# Get the exact URL from: GitHub → repo → Settings → Actions → Runners → New runner
-curl -o actions-runner-linux-x64-2.x.x.tar.gz -L <URL from GitHub>
-tar xzf ./actions-runner-linux-x64-2.x.x.tar.gz
-
-# Configure (token is shown on the GitHub runner setup page)
-./config.sh --url https://github.com/<your-org>/<your-repo> --token <TOKEN from GitHub>
-
-# DO NOT install as a background service
-# Instead use the start/stop scripts below
-```
-
-#### 3. Create Start & Stop Scripts
-
-The runner should **only run when Minikube is active**. Create these two scripts in your home directory.
-
-> **Important:** Replace `/path/to/your/project/actions-runner` with the actual path
-> where you cloned the repo and set up the runner on your machine.
-
-**`~/start-rolechat.sh`** — run this when you want to work:
-```bash
-#!/bin/bash
-echo "🚀 Starting RoleChat stack..."
-
-echo "⏳ Starting Minikube..."
-minikube start
-
-echo "🔍 Checking pods..."
-kubectl get pods -n rolechat
-
-echo "⚡ Starting GitHub Actions runner..."
-cd /path/to/your/project/actions-runner
-./run.sh &
-echo $! > ~/runner.pid
-echo "✅ Runner started (PID: $(cat ~/runner.pid))"
-
-echo ""
-echo "✅ RoleChat stack is fully online!"
-echo "   Frontend : https://gowthamchowdamm.streamlit.app"
-echo "   Backend  : https://api.gowthamchowdam23.online"
-echo "   Runner   : Online on GitHub"
-```
-
-**`~/stop-rolechat.sh`** — run this when you're done:
-```bash
-#!/bin/bash
-echo "🛑 Stopping RoleChat stack..."
-
-if [ -f ~/runner.pid ]; then
-    kill $(cat ~/runner.pid) 2>/dev/null
-    rm ~/runner.pid
-fi
-pkill -f "Runner.Listener" 2>/dev/null
-echo "⚡ Runner stopped"
-
-minikube stop
-echo "✅ Everything stopped. Safe to close WSL."
-```
-
-Make them executable:
-```bash
-chmod +x ~/start-rolechat.sh ~/stop-rolechat.sh
-```
-
-#### 4. Daily Usage
-
-```bash
-# Start everything (Minikube + runner)
-~/start-rolechat.sh
-
-# Stop everything when done
-~/stop-rolechat.sh
-```
-
-#### 5. Service Behavior by Machine State
-
-| Scenario | Runner | Minikube | Stack |
-|---|---|---|---|
-| Machine OFF | ❌ Off | ❌ Off | ❌ Offline |
-| WSL ON, scripts not run | ❌ Off | ❌ Off | ❌ Offline |
-| `start-rolechat.sh` run | ✅ On | ✅ On | ✅ Fully live |
-| `stop-rolechat.sh` run | ❌ Off | ❌ Off | ❌ Clean shutdown |
-
-> **Note:** The CI job (tests + Docker build) always runs on GitHub's servers regardless
-> of your machine state. Only the CD (deploy to Minikube) job requires your machine
-> and runner to be online.
-
-#### 6. Verify Runner is Online
-
-Go to repo → **Settings** → **Actions** → **Runners** — should show:
-```
-✅ Online  |  self-hosted  Linux  X64
-```
-
-### PR Workflow for Contributors
-
-```bash
-# 1. Clone the repo
-git clone https://github.com/<your-org>/RBAC-Secured-Internal-AI-Assistant.git
-cd RBAC-Secured-Internal-AI-Assistant
-
-# 2. Create a feature branch
-git checkout -b feature/your-feature-name
-
-# 3. Make your changes and commit
-git add .
-git commit -m "feat: describe your change"
-git push origin feature/your-feature-name
-
-# 4. Open a PR on GitHub → CI runs automatically
-# 5. Once CI passes and PR is approved → merge
-# 6. Full CI/CD pipeline deploys automatically
-```
-
-> **Note for forks:** The CD (deploy) job only runs on the original repository.
-> Forks will run CI (tests + build) but will not trigger deployment to Minikube.
-
----
-
-## 🔐 Security Notes
-
-- This system is designed to reduce internal data leakage in RAG by enforcing **role-based retrieval**.
-- Demo credentials are not published; accounts are provisioned on request.
-
-### What's protected
-- Department-specific documents are stored with metadata (role/department tags).
-- Retrieval queries are filtered by the authenticated user's role before sending context to the LLM.
-- Secrets (API keys) are injected via Kubernetes Secrets and should never be committed to the repo.
-
-### Data access rules
-- **C-Level**: unrestricted access
-- **Departments**: access only to their own folder/chunks
-- **Employees**: limited to general policies/FAQ
-
-### Secrets handling
-- `GOOGLE_API_KEY` is stored in:
-  - Local: `.env` (ignored by git)
-  - Kubernetes: `Secret` (`google-api`)
-  - CI/CD: GitHub Actions Secrets (`DOCKER_USERNAME`, `DOCKER_PASSWORD`, `DOCKER_IMAGE`)
-- Cloudflare Tunnel credentials are stored in Kubernetes secrets (`cloudflared-creds`, `cloudflared-config`)
-- `actions-runner/` folder is added to `.gitignore` — never committed to the repo
-
-### Recommended hardening (next steps)
-- Enforce HTTPS-only traffic end-to-end
-- Add rate limiting (FastAPI middleware / API gateway)
-- Add audit logs for user queries and document access decisions
-- Use short-lived tokens instead of basic auth (JWT/OAuth)
-- free tier only, no billing account — set a budget before ever enabling billing.
----
-
-## ✅ Quickstart (Local Development)
-
-1) Clone the repository
-    ```bash
-    git clone https://github.com/<your-org>/RBAC-Secured-Internal-AI-Assistant.git
-    cd RBAC-Secured-Internal-AI-Assistant
-    ```
-2) Create virtual environment (Python 3.11)
-    ```bash
-    python3.11 -m venv venv
-    source venv/bin/activate
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    ```
-3) Create .env
-    ```bash
-    GOOGLE_API_KEY=your_google_ai_studio_api_key
-    GEMINI_MODEL=gemini-2.5-flash
-    ```
-4) Build embeddings + ChromaDB (Run once)
-    ```bash
-    python -m app.embed_documents
-    ```
-5) Run backend (FastAPI)
-    ```bash
-    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-    ```
-6) Run frontend (Streamlit)
-    ```bash
-    streamlit run app/frontend.py
-    ```
-
-Open:
-
-- Frontend: http://localhost:8501
-- Backend docs: http://localhost:8000/docs
-
----
-
-## ☸️ Kubernetes Deployment (Minikube)
-
-2) Start Minikube + Namespace
-    ```bash
-    minikube start
-    kubectl create namespace rolechat || true
-    ```
-3) Create Secret for Gemini API Key
-    ```bash
-    kubectl delete secret google-api -n rolechat 2>/dev/null || true
-    kubectl create secret generic google-api -n rolechat \
-      --from-literal=GOOGLE_API_KEY="YOUR_GEMINI_API_KEY"
-    ```
-4) Apply PVC + Users ConfigMap
-    ```bash
-    kubectl apply -n rolechat -f k8s/chroma-pvc.yaml
-    kubectl apply -n rolechat -f k8s/users-configmap.yaml
-    ```
-5) Deploy Backend
-    ```bash
-    kubectl apply -n rolechat -f k8s/backend-deploy.yaml
-    kubectl get pods -n rolechat
-    ```
-6) Build Vector DB (Embed Job)
-    ```bash
-    kubectl delete job embed-docs -n rolechat 2>/dev/null || true
-    kubectl apply -n rolechat -f k8s/embed-job.yaml
-    kubectl logs -n rolechat job/embed-docs -f
-    ```
-7) Cloudflare Tunnel (Stable Backend URL)
-
-A) Login + Create tunnel
-    ```bash
-    cloudflared tunnel login
-    cloudflared tunnel create rolechat
-    ```
-B) Route DNS
-    ```bash
-    cloudflared tunnel route dns rolechat <your-backend-domain>
-    ```
-C) Deploy cloudflared inside Minikube
-
-Create K8s secrets (replace `<TUNNEL_ID>` with your actual tunnel ID):
-    ```bash
-    kubectl create secret generic cloudflared-creds -n rolechat \
-      --from-file=<TUNNEL_ID>.json=$HOME/.cloudflared/<TUNNEL_ID>.json
-
-    kubectl create secret generic cloudflared-config -n rolechat \
-      --from-file=config.yml=$HOME/.cloudflared/config.yml
-    ```
-Deploy:
-    ```bash
-    kubectl apply -n rolechat -f k8s/cloudflared-deploy.yaml
-    kubectl logs -n rolechat deploy/cloudflared -f
-    ```
-Test:
-    ```bash
-    curl -u "<username>:<password>" https://<your-backend-domain>/login
-    ```
-8) Streamlit Cloud Setup (Public Frontend)
-
-- Connect the GitHub repo in Streamlit Cloud
-- Set Python version = 3.11
-- App entry point = `app/frontend.py`
-- Add Secrets:
-```toml
-API_URL = "https://<your-backend-domain>"
+```markdown
+**GitOps & Secrets:** ArgoCD · Kustomize · KSOPS · SOPS + age · Helm
 ```
 
 ---
 
-## 👥 Role-Based Access Control (RBAC) 🧪 Sample Users & Roles
+## 9. Optional: a new section after `## 🚀 Features`
 
-| Role               | Permissions                                                                 |
-|--------------------|-----------------------------------------------------------------------------|
-| C-Level Executives | Full unrestricted access to all documents                                   |
-| Finance Team       | Financial reports, expenses, reimbursements                                 |
-| Marketing Team     | Campaign performance, customer insights, sales data                         |
-| HR Team            | Employee handbook, attendance, leave, payroll                               |
-| Engineering Dept.  | System architecture, deployment, CI/CD                                      |
-| Employees          | General information (FAQs, company policies, events)                        |
+```markdown
+## 🧭 Architecture Decisions
 
-**Want to try it?** Open an issue or reach out and I'll provision a scoped
-demo account. Or clone the repo and define your own users locally.
+**Why pull-based GitOps instead of CI pushing to the cluster**
+CI with cluster credentials means a compromised pipeline is a compromised
+cluster. With ArgoCD, CI only writes to git and the cluster pulls, so no
+kubeconfig or cluster token exists in CI at all.
 
----
+**Why SOPS + age instead of Sealed Secrets**
+SOPS encrypts per field, so `kind` and `name` stay readable in git and diffs
+are reviewable. The same encrypted file works locally (`sops -d`) and in the
+cluster (KSOPS), so there's no separate tool for each environment.
 
-## 🔧 Update / Revoke Users (No code change required)
-```bash
-kubectl edit configmap chatbot-users -n rolechat
+**Why bcrypt hashes even though the Secret is encrypted**
+Kubernetes Secrets are base64, not encryption. Anyone with
+`kubectl get secret` can read them. Hashing means even cluster admins never see
+a usable password.
+
+**Why the embed job sits outside ArgoCD**
+ArgoCD reconciles desired state; a Job is a one-time action. Jobs also have
+immutable auto-generated selectors, so they cannot be patched in place. Planned
+improvement: name the Job after a content hash of `resources/data/` so ArgoCD
+creates a new one only when documents actually change.
+
+**Why git-SHA image tags instead of semver**
+A SHA maps to an exact commit, so `git show <sha>` reveals precisely what's
+running. Mutable tags like `latest` or `1.9` can be overwritten, leaving no way
+to know what's deployed.
 ```
-Changes apply immediately on next login.
 
 ---
 
-## 🔧 Extending & Customizing
+## Quick checklist
 
-✅ **Add new roles**
-
-- Create folder: `resources/data/<role>/`
-- Add `.md` or `.csv` files
-- Add users for the role in `k8s/users-configmap.yaml`
-- Re-run embed job:
-    ```bash
-    kubectl delete job embed-docs -n rolechat
-    kubectl apply -n rolechat -f k8s/embed-job.yaml
-    ```
-
-✅ **Add more document types**
-
-- Extend loaders in `app/embed_documents.py` (PDF, DOCX, etc.)
-
-✅ **Change Gemini model**
-
-Set `GEMINI_MODEL` env var in backend deployment:
-- `gemini-2.5-flash` (fast)
-- `gemini-1.5-pro` (higher quality)
+- [ ] Project Structure tree updated
+- [ ] CI/CD section rewritten (self-hosted runner setup removed)
+- [ ] Secrets handling section rewritten
+- [ ] Hardening list split into done / next
+- [ ] Kubernetes Deployment section rewritten
+- [ ] User management section rewritten
+- [ ] Local Deployment note adjusted
+- [ ] Tech Stack updated
+- [ ] Architecture Decisions section added (optional)
+- [ ] Screenshots refreshed — add the ArgoCD app tree, it's a strong visual
