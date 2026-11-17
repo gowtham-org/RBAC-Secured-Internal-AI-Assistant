@@ -54,6 +54,10 @@ alertmanager:
         memory: 128Mi
 
 grafana:
+  grafana.ini:
+    server:
+      root_url: https://api.gowthamchowdam23.online/monitoring/
+      serve_from_sub_path: true
   admin:
     existingSecret: grafana-admin
     userKey: admin-user
