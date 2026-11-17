@@ -8,4 +8,4 @@ resources:
 images:
 - name: gowthamchowdam94/role-chatbot-api
   newName: gowthamchowdam94/role-chatbot-api
-  newTag: 2bcfe0de6b2cb5cb313aa40e18f86782df903a85
+  newTag: 618517b06135fee1cffaa74f4d44c9bce866a0da
