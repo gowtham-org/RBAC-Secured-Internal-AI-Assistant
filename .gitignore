@@ -60,4 +60,4 @@ k8s/users-secret.yaml
 
 # Plaintext secrets (pre-encryption) — only .enc.yaml may be committed
 k8s/**/*-secret.yaml
-!k8s/**/*.enc.yaml
+!k8s/**/*.enc.yamlistio-*/

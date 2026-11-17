@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: rolechat-backend
+spec:
+  selector:
+    matchLabels:
+      app: rolechat-backend
+  endpoints:
+    - port: metrics
+      interval: 15s

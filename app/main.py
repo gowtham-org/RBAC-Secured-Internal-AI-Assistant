@@ -10,6 +10,7 @@ Now uses:
 
 import logging
 import os
+import time
 
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -17,7 +18,10 @@ from dotenv import load_dotenv
 
 from google import genai
 from langchain_chroma import Chroma
+from prometheus_client import start_http_server
+from prometheus_fastapi_instrumentator import Instrumentator
 
+from app import metrics as m
 from app.google_embeddings import GoogleAIStudioEmbeddings
 from app.users_loader import verify_user
 
@@ -42,6 +46,42 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 app = FastAPI()
 security = HTTPBasic()
 
+# Auto metrics: request count, latency, status codes per endpoint.
+# We don't call .expose() on purpose. Metrics are served on a separate
+# port below so they never go through the public Cloudflare Tunnel.
+Instrumentator(excluded_handlers=["/healthz", "/metrics"]).instrument(app)
+
+
+@app.on_event("startup")
+def start_metrics_server():
+    port = os.getenv("METRICS_PORT")
+    if not port:  # only when set, so tests don't try to bind a port
+        return
+    try:
+        start_http_server(int(port))
+        logger.info("metrics server listening on :%s", port)
+    except OSError:
+        # e.g. port already in use under --reload. Never take the API down for metrics.
+        logger.exception("could not start metrics server on :%s", port)
+
+
+def count_gemini_tokens(result) -> None:
+    """Record token usage. Must never break a chat request."""
+    try:
+        usage = getattr(result, "usage_metadata", None)
+        if not usage:
+            return
+        for direction, attr in (
+            ("input", "prompt_token_count"),
+            ("output", "candidates_token_count"),
+        ):
+            n = getattr(usage, attr, None)
+            if isinstance(n, int):
+                m.GEMINI_TOKENS.labels(direction=direction).inc(n)
+    except Exception:
+        logger.exception("token accounting failed")
+
+
 # -----------------------------
 # Load Vector Database
 # -----------------------------
@@ -62,6 +102,7 @@ def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
     password = (credentials.password or "").strip()
     role = verify_user(username, password)
     if not role:
+        m.ACCESS_DENIED.inc()
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {"username": username, "role": role}
 
@@ -90,6 +131,7 @@ async def chat(request: Request, user=Depends(authenticate)):
     - Retrieves relevant documents from ChromaDB based on that role
     - Uses Gemini to generate the final answer
     """
+    start = time.perf_counter()
     try:
         data = await request.json()
         message = data.get("message", "").strip()
@@ -97,24 +139,26 @@ async def chat(request: Request, user=Depends(authenticate)):
             raise HTTPException(status_code=400, detail="Missing 'message' in request body")
 
         user_role = user["role"].lower()
+        m.CHAT_REQUESTS_BY_ROLE.labels(role=user["role"]).inc()
 
         # -----------------------------
         # Role-based retrieval
         # -----------------------------
-        if "c-levelexecutives" in user_role:
-            docs = vectordb.similarity_search(message, k=3)
-            if not docs:
-                docs = vectordb.similarity_search(
-                    message,
-                    k=5,
-                    filter={"role": {"$in": ["engineering", "hr", "finance", "marketing", "general"]}},
-                )
+        with m.RETRIEVAL_SECONDS.time():
+            if "c-levelexecutives" in user_role:
+                docs = vectordb.similarity_search(message, k=3)
+                if not docs:
+                    docs = vectordb.similarity_search(
+                        message,
+                        k=5,
+                        filter={"role": {"$in": ["engineering", "hr", "finance", "marketing", "general"]}},
+                    )
 
-        elif "employee" in user_role:
-            docs = vectordb.similarity_search(message, k=3, filter={"category": "general"})
+            elif "employee" in user_role:
+                docs = vectordb.similarity_search(message, k=3, filter={"category": "general"})
 
-        else:
-            docs = vectordb.similarity_search(message, k=3, filter={"role": user["role"]})
+            else:
+                docs = vectordb.similarity_search(message, k=3, filter={"role": user["role"]})
 
         logger.info(
             "chat request | user=%s role=%s docs_returned=%d",
@@ -122,6 +166,7 @@ async def chat(request: Request, user=Depends(authenticate)):
         )
 
         if not docs:
+            m.EMPTY_RETRIEVAL.labels(role=user["role"]).inc()
             return {"response": f"No relevant data found for your role: {user['role']}"}
 
         # -----------------------------
@@ -150,7 +195,16 @@ Answer:
         # -----------------------------
         # Gemini response
         # -----------------------------
-        result = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        try:
+            with m.LLM_SECONDS.time():
+                result = client.models.generate_content(model=GEMINI_MODEL, contents=prompt)
+        except Exception as exc:
+            m.GEMINI_ERRORS.labels(
+                stage="generation", error_type=m.classify_gemini_error(exc)
+            ).inc()
+            raise
+
+        count_gemini_tokens(result)
         llm_answer = (result.text or "").strip()
 
         return {
@@ -165,3 +219,5 @@ Answer:
     except Exception:
         logger.exception("chat failed for user=%s", user["username"])
         raise HTTPException(status_code=500, detail="Internal error while processing chat request")
+    finally:
+        m.CHAT_SECONDS.observe(time.perf_counter() - start)
