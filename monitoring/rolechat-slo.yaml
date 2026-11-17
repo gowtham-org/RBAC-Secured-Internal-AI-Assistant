@@ -1,0 +1,88 @@
+# SLOs: 99% of /chat requests not 5xx; 95% of /chat requests under 10s.
+# Burn-rate alerts follow the Google SRE multiwindow pattern (14.4x page, 6x ticket).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rolechat-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: rolechat
+    release: kps
+spec:
+  groups:
+  - name: rolechat-slo-recording
+    interval: 30s
+    rules:
+    - record: rolechat:chat_error_ratio:rate5m
+      expr: (sum(rate(http_requests_total{job="rolechat-backend",handler="/chat",status="5xx"}[5m])) or vector(0)) / sum(rate(http_requests_total{job="rolechat-backend",handler="/chat"}[5m]))
+    - record: rolechat:chat_error_ratio:rate30m
+      expr: (sum(rate(http_requests_total{job="rolechat-backend",handler="/chat",status="5xx"}[30m])) or vector(0)) / sum(rate(http_requests_total{job="rolechat-backend",handler="/chat"}[30m]))
+    - record: rolechat:chat_error_ratio:rate1h
+      expr: (sum(rate(http_requests_total{job="rolechat-backend",handler="/chat",status="5xx"}[1h])) or vector(0)) / sum(rate(http_requests_total{job="rolechat-backend",handler="/chat"}[1h]))
+    - record: rolechat:chat_error_ratio:rate6h
+      expr: (sum(rate(http_requests_total{job="rolechat-backend",handler="/chat",status="5xx"}[6h])) or vector(0)) / sum(rate(http_requests_total{job="rolechat-backend",handler="/chat"}[6h]))
+    - record: rolechat:chat_slow_ratio:rate5m
+      expr: 1 - (sum(rate(rag_chat_seconds_bucket{job="rolechat-backend",le="10"}[5m])) / sum(rate(rag_chat_seconds_count{job="rolechat-backend"}[5m])))
+    - record: rolechat:chat_slow_ratio:rate30m
+      expr: 1 - (sum(rate(rag_chat_seconds_bucket{job="rolechat-backend",le="10"}[30m])) / sum(rate(rag_chat_seconds_count{job="rolechat-backend"}[30m])))
+    - record: rolechat:chat_slow_ratio:rate1h
+      expr: 1 - (sum(rate(rag_chat_seconds_bucket{job="rolechat-backend",le="10"}[1h])) / sum(rate(rag_chat_seconds_count{job="rolechat-backend"}[1h])))
+    - record: rolechat:chat_slow_ratio:rate6h
+      expr: 1 - (sum(rate(rag_chat_seconds_bucket{job="rolechat-backend",le="10"}[6h])) / sum(rate(rag_chat_seconds_count{job="rolechat-backend"}[6h])))
+    - record: rolechat:chat_requests:increase1h
+      expr: sum(increase(http_requests_total{job="rolechat-backend",handler="/chat"}[1h]))
+  - name: rolechat-slo-alerts
+    rules:
+    - alert: RoleChatErrorBudgetFastBurn
+      expr: (rolechat:chat_error_ratio:rate1h > 0.144 and rolechat:chat_error_ratio:rate5m > 0.144) and rolechat:chat_requests:increase1h >= 10
+      for: 2m
+      labels:
+        severity: critical
+        service: rolechat
+        slo: availability
+      annotations:
+        summary: RoleChat is burning its availability error budget fast
+        description: '{{ $value | humanizePercentage }} of /chat requests are failing with 5xx (1h window). At this rate the monthly 99% budget is gone in about 2 days.'
+        runbook_url: https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant/blob/main/docs/runbooks/error-budget-burn.md
+    - alert: RoleChatErrorBudgetSlowBurn
+      expr: (rolechat:chat_error_ratio:rate6h > 0.06 and rolechat:chat_error_ratio:rate30m > 0.06) and rolechat:chat_requests:increase1h >= 10
+      for: 15m
+      labels:
+        severity: warning
+        service: rolechat
+        slo: availability
+      annotations:
+        summary: RoleChat is steadily burning its availability error budget
+        description: '{{ $value | humanizePercentage }} of /chat requests failed with 5xx over 6h. Not urgent, but the budget will run out within days.'
+        runbook_url: https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant/blob/main/docs/runbooks/error-budget-burn.md
+    - alert: RoleChatLatencySLOBurn
+      expr: (rolechat:chat_slow_ratio:rate6h > 0.3 and rolechat:chat_slow_ratio:rate30m > 0.3) and rolechat:chat_requests:increase1h >= 10
+      for: 15m
+      labels:
+        severity: warning
+        service: rolechat
+        slo: latency
+      annotations:
+        summary: Too many /chat requests are slower than 10s
+        description: '{{ $value | humanizePercentage }} of /chat requests took longer than 10s over 6h (target: at most 5%). Check the ''retrieval vs Gemini'' panel to see which side is slow.'
+        runbook_url: https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant/blob/main/docs/runbooks/slow-responses.md
+    - alert: RoleChatBackendDown
+      expr: up{job="rolechat-backend"} == 0 or absent(up{job="rolechat-backend"})
+      for: 3m
+      labels:
+        severity: critical
+        service: rolechat
+      annotations:
+        summary: Prometheus cannot scrape the RoleChat backend
+        description: The backend metrics target has been down or missing for 3 minutes. The pod is probably not running or not ready.
+        runbook_url: https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant/blob/main/docs/runbooks/backend-down.md
+    - alert: RoleChatGeminiRateLimited
+      expr: sum(increase(rag_gemini_errors_total{job="rolechat-backend",error_type="rate_limited"}[15m])) > 5
+      for: 5m
+      labels:
+        severity: warning
+        service: rolechat
+      annotations:
+        summary: Gemini is rate limiting RoleChat (429s)
+        description: '{{ $value | printf "%.0f" }} rate-limited Gemini calls in 15m. Free-tier quota is probably exhausted, so users will see slow answers or errors.'
+        runbook_url: https://github.com/gowtham-org/RBAC-Secured-Internal-AI-Assistant/blob/main/docs/runbooks/gemini-429.md
