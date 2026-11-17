@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from google import genai
 from langchain_core.embeddings import Embeddings
 
+from app import metrics as m
+
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -51,6 +53,10 @@ class GoogleAIStudioEmbeddings(Embeddings):
                     or "RESOURCE_EXHAUSTED" in error_str
                     or "quota" in error_str.lower()
                 )
+                m.GEMINI_ERRORS.labels(
+                    stage="embedding",
+                    error_type="rate_limited" if is_quota_error else "other",
+                ).inc()
                 if is_quota_error:
                     sleep_s = self.base_sleep * (2 ** attempt) + random.uniform(0, 1.0)
                     sleep_s = min(sleep_s, 60)
@@ -82,6 +88,7 @@ class GoogleAIStudioEmbeddings(Embeddings):
         return vectors
 
     def embed_query(self, text: str) -> List[float]:
-        response = self._embed_with_retry(text, task_type="retrieval_query")
+        with m.EMBEDDING_SECONDS.time():
+            response = self._embed_with_retry(text, task_type="retrieval_query")
         # Single text returns one embedding
         return response.embeddings[0].values

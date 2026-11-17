@@ -4,6 +4,7 @@ resources:
 - backend-deploy.yaml
 - chroma-pvc.yaml
 - cloudflared-deploy.yaml
+- servicemonitor.yaml
 images:
 - name: gowthamchowdam94/role-chatbot-api
   newName: gowthamchowdam94/role-chatbot-api

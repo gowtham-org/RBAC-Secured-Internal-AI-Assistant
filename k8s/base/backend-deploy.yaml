@@ -18,6 +18,8 @@ spec:
           image: gowthamchowdam94/role-chatbot-api:1.9
           ports:
             - containerPort: 8000
+            - containerPort: 9100
+              name: metrics
           env:
             - name: GOOGLE_API_KEY
               valueFrom:
@@ -28,6 +30,8 @@ spec:
               value: gemini-2.5-flash
             - name: USERS_FILE
               value: /config/users.json
+            - name: METRICS_PORT
+              value: "9100"
 
           livenessProbe:
             httpGet:
@@ -74,9 +78,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: rolechat-backend
+  labels:
+    app: rolechat-backend
 spec:
   selector:
     app: rolechat-backend
   ports:
-    - port: 8000
+    - name: http
+      port: 8000
       targetPort: 8000
+    - name: metrics
+      port: 9100
+      targetPort: 9100
