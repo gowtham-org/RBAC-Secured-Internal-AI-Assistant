@@ -1,0 +1,22 @@
+# Traefik as the in-cluster router. Cloudflare Tunnel is the only way in.
+service:
+  spec: 
+    type: ClusterIP
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+providers:
+  kubernetesIngress:
+    publishedService:
+      enabled: false        # no LoadBalancer IP to publish
+  kubernetesCRD:
+    enabled: false          # plain Ingress only, keeps it portable
+ports:
+  websecure:
+    expose:
+      default: false        # TLS ends at Cloudflare
+api:
+  dashboard: false
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 192Mi }
